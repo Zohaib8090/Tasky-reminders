@@ -1,0 +1,6 @@
+{
+  "name": "TaskNest",
+  "description": "Material 3 Expressive task manager with Room DB, notes, alarms, and calendar view.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

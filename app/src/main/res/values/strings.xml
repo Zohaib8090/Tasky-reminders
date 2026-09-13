@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">TaskNest</string>
+    <string name="tab_today">Today</string>
+    <string name="tab_calendar">Calendar</string>
+    <string name="tab_notes">Notes</string>
+    <string name="add_task">Add Task</string>
+    <string name="edit_task">Edit Task</string>
+    <string name="task_detail">Task Detail</string>
+    <string name="notification_channel_name">Task Reminders</string>
+    <string name="notification_channel_desc">Notifications for scheduled tasks and upcoming deadlines</string>
+    <string name="action_done">Done</string>
+    <string name="action_snooze">Snooze</string>
+    <string name="category_study">Study</string>
+    <string name="category_personal">Personal</string>
+    <string name="category_work">Work</string>
+    <string name="priority_low">Low</string>
+    <string name="priority_med">Medium</string>
+    <string name="priority_high">High</string>
+</resources>
