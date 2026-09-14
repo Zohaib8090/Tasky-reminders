@@ -38,6 +38,12 @@ class TaskRepository(
         taskDao.setTaskCompletion(id, completed)
     }
 
+    suspend fun getActiveReminderTasks(): List<Task> = taskDao.getActiveReminderTasks()
+
+    suspend fun updateTaskReminder(id: Long, reminderEnabled: Boolean, reminderMinutesBefore: Int) {
+        taskDao.updateTaskReminder(id, reminderEnabled, reminderMinutesBefore)
+    }
+
     fun getNotesForTask(taskId: Long): Flow<List<Note>> = noteDao.getNotesForTask(taskId)
 
     fun getFirstNoteForTask(taskId: Long): Flow<Note?> = noteDao.getFirstNoteForTask(taskId)

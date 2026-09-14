@@ -23,6 +23,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.OutlinedButton
+import com.example.notifications.AlarmScheduler
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Close
@@ -97,6 +105,10 @@ fun AddTaskBottomSheet(
     val initialDate = editingTask?.dueDate ?: System.currentTimeMillis()
     var dueDateMillis by remember { mutableStateOf(initialDate) }
     var dueTimeString by remember { mutableStateOf(editingTask?.dueTime ?: "12:00") }
+
+    // Reminder & Alarm state
+    var reminderEnabled by remember { mutableStateOf(editingTask?.reminderEnabled ?: true) }
+    var reminderMinutesBefore by remember { mutableStateOf(editingTask?.reminderMinutesBefore ?: 0) }
 
     // Note field state
     var attachedNote by remember { mutableStateOf("") }
@@ -283,12 +295,12 @@ fun AddTaskBottomSheet(
 
             // DatePicker & TimePicker interactive buttons
             Text(
-                text = "Schedule & Alarm Reminder",
+                text = "Schedule",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Exact alarm will fire at time + 15 min prior",
+                text = "Choose due date and time for task execution",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -383,6 +395,208 @@ fun AddTaskBottomSheet(
                             Text(
                                 text = dueTimeString,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Alarm Reminder Configuration Card
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = if (reminderEnabled) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("task_reminder_config_card")
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (reminderEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (reminderEnabled) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff,
+                                    contentDescription = "Reminder Status",
+                                    tint = if (reminderEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Task Alarm Reminder",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (reminderEnabled) "Exact notification via AlarmManager" else "No notification reminder",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = reminderEnabled,
+                            onCheckedChange = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                reminderEnabled = it
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            modifier = Modifier.testTag("reminder_toggle_switch")
+                        )
+                    }
+
+                    if (reminderEnabled) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "Remind Me",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Offset choice chips
+                        val timingOptions = listOf(
+                            0 to "At due time",
+                            5 to "5m before",
+                            15 to "15m before",
+                            30 to "30m before",
+                            60 to "1h before",
+                            1440 to "1d before"
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            timingOptions.take(3).forEach { (minutes, label) ->
+                                val selected = reminderMinutesBefore == minutes
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        reminderMinutesBefore = minutes
+                                    },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                    shape = PillShape,
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    ),
+                                    modifier = Modifier.testTag("reminder_chip_$minutes")
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            timingOptions.drop(3).forEach { (minutes, label) ->
+                                val selected = reminderMinutesBefore == minutes
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        reminderMinutesBefore = minutes
+                                    },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                    shape = PillShape,
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    ),
+                                    modifier = Modifier.testTag("reminder_chip_$minutes")
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Explanatory badge
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Alarm,
+                                    contentDescription = "Alarm Timing",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val dateStr = dateDisplayFormat.format(Date(dueDateMillis))
+                                val summary = if (reminderMinutesBefore == 0) {
+                                    "Alarm rings exactly at $dueTimeString on $dateStr"
+                                } else {
+                                    "Alarm rings $reminderMinutesBefore min early + exact alarm at $dueTimeString on $dateStr"
+                                }
+                                Text(
+                                    text = summary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Test Notification button
+                        OutlinedButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                AlarmScheduler.scheduleTestAlarm(
+                                    context = context,
+                                    taskId = editingTask?.id ?: 9999L,
+                                    taskTitle = title.ifBlank { "Sample Task" },
+                                    delaySeconds = 5
+                                )
+                            },
+                            shape = PillShape,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("test_alarm_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Notifications,
+                                contentDescription = "Test Notification",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Test Alarm Notification (5s)",
+                                style = MaterialTheme.typography.labelMedium
                             )
                         }
                     }
@@ -525,6 +739,8 @@ fun AddTaskBottomSheet(
                             category = selectedCategory,
                             attachedNoteContent = attachedNote,
                             checklistItems = checklistItems.toList(),
+                            reminderEnabled = reminderEnabled,
+                            reminderMinutesBefore = reminderMinutesBefore,
                             context = context
                         )
                     }

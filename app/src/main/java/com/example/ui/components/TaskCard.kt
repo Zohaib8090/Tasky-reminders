@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -251,6 +252,35 @@ fun TaskCard(
                             ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+
+                    if (task.reminderEnabled && !task.isCompleted) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Row(
+                            modifier = Modifier
+                                .clip(PillShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.NotificationsActive,
+                                contentDescription = "Alarm reminder active",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            if (task.reminderMinutesBefore > 0) {
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "-${task.reminderMinutesBefore}m",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
                     }
                 }
 

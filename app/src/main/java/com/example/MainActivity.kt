@@ -1,6 +1,7 @@
 package com.example
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -11,8 +12,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -72,6 +73,15 @@ class MainActivity : ComponentActivity() {
                     initialTaskId = if (navigateTaskId != -1L) navigateTaskId else null
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val taskId = intent.getLongExtra("EXTRA_NAVIGATE_TASK_ID", -1L)
+        if (taskId != -1L) {
+            viewModel.loadAndOpenTaskById(taskId)
         }
     }
 }
@@ -170,14 +180,14 @@ fun MainAppScreen(
                 targetState = currentTab,
                 transitionSpec = {
                     fadeIn(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow
+                        animationSpec = tween(
+                            durationMillis = 120,
+                            easing = FastOutSlowInEasing
                         )
                     ) togetherWith fadeOut(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow
+                        animationSpec = tween(
+                            durationMillis = 80,
+                            easing = FastOutSlowInEasing
                         )
                     )
                 },

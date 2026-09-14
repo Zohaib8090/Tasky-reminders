@@ -37,4 +37,13 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET isCompleted = :completed WHERE id = :id")
     suspend fun setTaskCompletion(id: Long, completed: Boolean)
+
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND reminderEnabled = 1")
+    suspend fun getActiveReminderTasks(): List<Task>
+
+    @Query("SELECT * FROM tasks")
+    suspend fun getAllTasksSync(): List<Task>
+
+    @Query("UPDATE tasks SET reminderEnabled = :reminderEnabled, reminderMinutesBefore = :reminderMinutesBefore WHERE id = :id")
+    suspend fun updateTaskReminder(id: Long, reminderEnabled: Boolean, reminderMinutesBefore: Int)
 }

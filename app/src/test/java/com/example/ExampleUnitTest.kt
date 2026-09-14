@@ -74,5 +74,53 @@ class ExampleUnitTest {
     assertFalse(decoded[1].isDone)
     assertFalse(decoded[2].isDone)
   }
+
+  @Test
+  fun testTaskReminderOffsetAndLabel() {
+    val dummyTime = System.currentTimeMillis()
+    val taskExact = com.example.data.model.Task(
+      title = "Doctor Appointment",
+      dueDate = dummyTime,
+      dueTime = "10:00",
+      reminderEnabled = true,
+      reminderMinutesBefore = 0
+    )
+    assertEquals("At due time", taskExact.getReminderLabel())
+
+    val task15m = com.example.data.model.Task(
+      title = "Team Meeting",
+      dueDate = dummyTime,
+      dueTime = "11:00",
+      reminderEnabled = true,
+      reminderMinutesBefore = 15
+    )
+    assertEquals("15 min before", task15m.getReminderLabel())
+
+    val task1h = com.example.data.model.Task(
+      title = "Flight",
+      dueDate = dummyTime,
+      dueTime = "12:00",
+      reminderEnabled = true,
+      reminderMinutesBefore = 60
+    )
+    assertEquals("1 hour before", task1h.getReminderLabel())
+
+    val task1d = com.example.data.model.Task(
+      title = "Conference",
+      dueDate = dummyTime,
+      dueTime = "13:00",
+      reminderEnabled = true,
+      reminderMinutesBefore = 1440
+    )
+    assertEquals("1 day before", task1d.getReminderLabel())
+
+    val taskOff = com.example.data.model.Task(
+      title = "Groceries",
+      dueDate = dummyTime,
+      dueTime = "14:00",
+      reminderEnabled = false
+    )
+    assertEquals("Reminder Off", taskOff.getReminderLabel())
+  }
 }
 

@@ -33,8 +33,15 @@ enum class NavTab(val title: String) {
 }
 
 class TaskViewModel(
-    private val repository: TaskRepository
+    private val repository: TaskRepository,
+    private val appContext: Context? = null
 ) : ViewModel() {
+
+    init {
+        appContext?.let { context ->
+            AlarmScheduler.rescheduleAllActiveAlarms(context)
+        }
+    }
 
     val allTasks: StateFlow<List<Task>> = repository.allTasks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -225,6 +232,8 @@ class TaskViewModel(
         category: Category,
         attachedNoteContent: String,
         checklistItems: List<ChecklistItem>,
+        reminderEnabled: Boolean = true,
+        reminderMinutesBefore: Int = 0,
         context: Context
     ) {
         if (title.isBlank()) return
@@ -241,7 +250,9 @@ class TaskViewModel(
                     dueTime = dueTime,
                     priority = priority,
                     category = category,
-                    checklistJson = checklistEncoded
+                    checklistJson = checklistEncoded,
+                    reminderEnabled = reminderEnabled,
+                    reminderMinutesBefore = reminderMinutesBefore
                 )
                 repository.updateTask(updated)
                 if (attachedNoteContent.isNotBlank()) {
@@ -253,9 +264,13 @@ class TaskViewModel(
                         )
                     )
                 }
-                AlarmScheduler.scheduleTaskAlarms(context, updated)
+                if (updated.reminderEnabled) {
+                    AlarmScheduler.scheduleTaskAlarms(context, updated)
+                } else {
+                    AlarmScheduler.cancelTaskAlarms(context, updated.id)
+                }
                 _selectedTask.value = updated
-                _userMessage.value = "Task updated"
+                _userMessage.value = if (updated.reminderEnabled) "Task & reminder updated" else "Task updated"
             } else {
                 val newTask = Task(
                     title = title.trim(),
@@ -264,7 +279,9 @@ class TaskViewModel(
                     dueTime = dueTime,
                     priority = priority,
                     category = category,
-                    checklistJson = checklistEncoded
+                    checklistJson = checklistEncoded,
+                    reminderEnabled = reminderEnabled,
+                    reminderMinutesBefore = reminderMinutesBefore
                 )
                 val taskId = repository.insertTask(newTask)
                 val createdTask = newTask.copy(id = taskId)
@@ -277,10 +294,47 @@ class TaskViewModel(
                         )
                     )
                 }
-                AlarmScheduler.scheduleTaskAlarms(context, createdTask)
-                _userMessage.value = "Task saved with reminder"
+                if (createdTask.reminderEnabled) {
+                    AlarmScheduler.scheduleTaskAlarms(context, createdTask)
+                }
+                _userMessage.value = if (createdTask.reminderEnabled) "Task scheduled with reminder alarm" else "Task saved"
             }
             closeAddTaskSheet()
+        }
+    }
+
+    fun setTaskReminder(task: Task, enabled: Boolean, minutesBefore: Int, context: Context) {
+        viewModelScope.launch {
+            val updated = task.copy(
+                reminderEnabled = enabled,
+                reminderMinutesBefore = minutesBefore
+            )
+            repository.updateTask(updated)
+            if (_selectedTask.value?.id == task.id) {
+                _selectedTask.value = updated
+            }
+            if (enabled && !updated.isCompleted) {
+                AlarmScheduler.scheduleTaskAlarms(context, updated)
+                _userMessage.value = "Reminder set: ${updated.getReminderLabel()}"
+            } else {
+                AlarmScheduler.cancelTaskAlarms(context, task.id)
+                _userMessage.value = "Reminder turned off"
+            }
+        }
+    }
+
+    fun testTaskReminder(task: Task, context: Context) {
+        AlarmScheduler.scheduleTestAlarm(context, task.id, task.title, delaySeconds = 5)
+        _userMessage.value = "Alarm test scheduled! Notification will fire in 5 seconds."
+    }
+
+    fun loadAndOpenTaskById(taskId: Long) {
+        viewModelScope.launch {
+            val task = repository.getTaskByIdSync(taskId)
+            if (task != null) {
+                _selectedTask.value = task
+                _isTaskDetailSheetVisible.value = true
+            }
         }
     }
 
@@ -463,7 +517,7 @@ class TaskViewModel(
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val db = AppDatabase.getInstance(context)
                     val repository = TaskRepository(db.taskDao(), db.noteDao())
-                    return TaskViewModel(repository) as T
+                    return TaskViewModel(repository, context.applicationContext) as T
                 }
             }
     }

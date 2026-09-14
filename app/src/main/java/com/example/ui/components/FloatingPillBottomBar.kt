@@ -1,9 +1,9 @@
 package com.example.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -77,8 +77,10 @@ fun FloatingPillBottomBar(
                     icon = Icons.Rounded.Today,
                     isSelected = currentTab == NavTab.TODAY,
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTabSelected(NavTab.TODAY)
+                        if (currentTab != NavTab.TODAY) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTabSelected(NavTab.TODAY)
+                        }
                     }
                 )
 
@@ -87,8 +89,10 @@ fun FloatingPillBottomBar(
                     icon = Icons.Rounded.CalendarMonth,
                     isSelected = currentTab == NavTab.CALENDAR,
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTabSelected(NavTab.CALENDAR)
+                        if (currentTab != NavTab.CALENDAR) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTabSelected(NavTab.CALENDAR)
+                        }
                     }
                 )
 
@@ -97,8 +101,10 @@ fun FloatingPillBottomBar(
                     icon = Icons.Rounded.Description,
                     isSelected = currentTab == NavTab.NOTES,
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTabSelected(NavTab.NOTES)
+                        if (currentTab != NavTab.NOTES) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTabSelected(NavTab.NOTES)
+                        }
                     }
                 )
 
@@ -107,8 +113,10 @@ fun FloatingPillBottomBar(
                     icon = Icons.Rounded.Settings,
                     isSelected = currentTab == NavTab.SETTINGS,
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTabSelected(NavTab.SETTINGS)
+                        if (currentTab != NavTab.SETTINGS) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTabSelected(NavTab.SETTINGS)
+                        }
                     }
                 )
             }
@@ -127,27 +135,27 @@ private fun PillNavItem(
 
     val containerColor by animateColorAsState(
         targetValue = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
+        animationSpec = tween(
+            durationMillis = 120,
+            easing = FastOutSlowInEasing
         ),
         label = "pill_container_color"
     )
 
     val contentColor by animateColorAsState(
         targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium
+        animationSpec = tween(
+            durationMillis = 120,
+            easing = FastOutSlowInEasing
         ),
         label = "pill_content_color"
     )
 
     val horizontalPadding by animateDpAsState(
         targetValue = if (isSelected) 18.dp else 12.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
+        animationSpec = tween(
+            durationMillis = 120,
+            easing = FastOutSlowInEasing
         ),
         label = "pill_padding"
     )
