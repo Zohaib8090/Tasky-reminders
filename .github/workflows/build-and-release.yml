@@ -48,12 +48,29 @@ jobs:
       - name: Grant Execute Permission to Gradlew
         run: chmod +x gradlew
 
-      - name: Restore Debug Keystore
+      - name: Restore or Generate Debug Keystore
         run: |
-          if [ -f debug.keystore.base64 ]; then
-            echo "Restoring debug.keystore from base64..."
+          if [ -f debug.keystore ]; then
+            echo "debug.keystore already exists."
+          elif [ -f debug.keystore.base64 ]; then
+            echo "Restoring debug.keystore from debug.keystore.base64 file..."
             base64 -d debug.keystore.base64 > debug.keystore
+          elif [ -n "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "Restoring debug.keystore from DEBUG_KEYSTORE_BASE64 secret..."
+            echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+          else
+            echo "No debug keystore found. Generating valid debug.keystore with keytool..."
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -alias androiddebugkey \
+              -storepass android \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
+          ls -la debug.keystore
 
       - name: Setup Release Keystore (if secrets provided)
         id: setup-release-keystore
