@@ -14,6 +14,11 @@ import com.example.data.model.Priority
 import com.example.data.model.Task
 import com.example.data.repository.TaskRepository
 import com.example.notifications.AlarmScheduler
+import android.net.Uri
+import com.example.data.backup.BackupManager
+import com.example.data.backup.BackupResult
+import com.example.data.backup.BackupSettings
+import com.example.data.backup.RestoreResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +35,13 @@ enum class NavTab(val title: String) {
     CALENDAR("Calendar"),
     NOTES("Notes"),
     SETTINGS("Settings")
+}
+
+sealed class BackupUiState {
+    object Idle : BackupUiState()
+    data class InProgress(val message: String) : BackupUiState()
+    data class Success(val message: String) : BackupUiState()
+    data class Error(val message: String) : BackupUiState()
 }
 
 class TaskViewModel(
@@ -93,19 +105,116 @@ class TaskViewModel(
     private val _isNewNoteHeadingDialogVisible = MutableStateFlow(false)
     val isNewNoteHeadingDialogVisible: StateFlow<Boolean> = _isNewNoteHeadingDialogVisible.asStateFlow()
 
+    // SharedPreferences for settings persistence
+    private val sharedPrefs = appContext?.getSharedPreferences("tasknest_prefs", Context.MODE_PRIVATE)
+
     // Selected Material 3 Color Theme Palette
-    private val _selectedThemePalette = MutableStateFlow(com.example.ui.theme.AppThemePalette.BLUE)
+    private val _selectedThemePalette = MutableStateFlow(
+        sharedPrefs?.getString("theme_palette", null)?.let { saved ->
+            try {
+                com.example.ui.theme.AppThemePalette.valueOf(saved)
+            } catch (e: Exception) {
+                com.example.ui.theme.AppThemePalette.BLUE
+            }
+        } ?: com.example.ui.theme.AppThemePalette.BLUE
+    )
     val selectedThemePalette: StateFlow<com.example.ui.theme.AppThemePalette> = _selectedThemePalette.asStateFlow()
 
-    private val _isDarkMode = MutableStateFlow<Boolean?>(null)
+    private val _isDarkMode = MutableStateFlow<Boolean?>(
+        when (sharedPrefs?.getString("dark_mode", "SYSTEM")) {
+            "DARK" -> true
+            "LIGHT" -> false
+            else -> null
+        }
+    )
     val isDarkMode: StateFlow<Boolean?> = _isDarkMode.asStateFlow()
 
     fun setAppThemePalette(palette: com.example.ui.theme.AppThemePalette) {
         _selectedThemePalette.value = palette
+        sharedPrefs?.edit()?.putString("theme_palette", palette.name)?.apply()
     }
 
     fun setDarkMode(isDark: Boolean?) {
         _isDarkMode.value = isDark
+        val modeStr = when (isDark) {
+            true -> "DARK"
+            false -> "LIGHT"
+            null -> "SYSTEM"
+        }
+        sharedPrefs?.edit()?.putString("dark_mode", modeStr)?.apply()
+    }
+
+    // Local Backup & Restore State
+    private val _backupUiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
+    val backupUiState: StateFlow<BackupUiState> = _backupUiState.asStateFlow()
+
+    private val _lastBackupTime = MutableStateFlow(sharedPrefs?.getLong("last_backup_time", 0L) ?: 0L)
+    val lastBackupTime: StateFlow<Long> = _lastBackupTime.asStateFlow()
+
+    fun clearBackupUiState() {
+        _backupUiState.value = BackupUiState.Idle
+    }
+
+    fun createBackup(destinationUri: Uri, context: Context) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.InProgress("Creating local backup zip...")
+            val currentSettings = BackupSettings(
+                themePalette = _selectedThemePalette.value.name,
+                isDarkMode = _isDarkMode.value
+            )
+            val result = BackupManager.createBackup(
+                context = context,
+                destinationUri = destinationUri,
+                repository = repository,
+                settings = currentSettings
+            )
+            when (result) {
+                is BackupResult.Success -> {
+                    val now = System.currentTimeMillis()
+                    _lastBackupTime.value = now
+                    sharedPrefs?.edit()?.putLong("last_backup_time", now)?.apply()
+                    _backupUiState.value = BackupUiState.Success(
+                        "Backup saved successfully!\nExported ${result.taskCount} tasks, ${result.noteCount} notes, and ${result.mediaCount} media files."
+                    )
+                    _userMessage.value = "Backup created: ${result.fileName}"
+                }
+                is BackupResult.Error -> {
+                    _backupUiState.value = BackupUiState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    fun restoreBackup(sourceUri: Uri, replaceExisting: Boolean, context: Context) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.InProgress("Restoring database & extracting media...")
+            val result = BackupManager.restoreBackup(
+                context = context,
+                sourceUri = sourceUri,
+                repository = repository,
+                replaceExisting = replaceExisting
+            )
+            when (result) {
+                is RestoreResult.Success -> {
+                    result.settings?.let { restoredSettings ->
+                        try {
+                            val pal = com.example.ui.theme.AppThemePalette.valueOf(restoredSettings.themePalette)
+                            setAppThemePalette(pal)
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                        setDarkMode(restoredSettings.isDarkMode)
+                    }
+                    _backupUiState.value = BackupUiState.Success(
+                        "Restored ${result.taskCount} tasks, ${result.noteCount} notes, ${result.mediaCount} media files, and app settings!"
+                    )
+                    _userMessage.value = "Restore completed successfully!"
+                }
+                is RestoreResult.Error -> {
+                    _backupUiState.value = BackupUiState.Error(result.message)
+                }
+            }
+        }
     }
 
     fun openNewNoteHeadingDialog() {

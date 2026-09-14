@@ -57,4 +57,16 @@ class TaskRepository(
     suspend fun deleteNote(note: Note) = noteDao.deleteNote(note)
 
     suspend fun deleteNoteById(id: Long) = noteDao.deleteNoteById(id)
+    suspend fun getAllTasksSync(): List<Task> = taskDao.getAllTasksSync()
+
+    suspend fun getAllNotesSync(): List<Note> = noteDao.getAllNotesSync()
+
+    suspend fun insertTasks(tasks: List<Task>) = taskDao.insertTasks(tasks)
+
+    suspend fun insertNotes(notes: List<Note>) = noteDao.insertNotes(notes)
+
+    suspend fun clearAllData() {
+        noteDao.deleteAllNotes()
+        taskDao.deleteAllTasks()
+    }
 }

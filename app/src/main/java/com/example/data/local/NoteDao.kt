@@ -37,4 +37,13 @@ interface NoteDao {
 
     @Query("DELETE FROM notes WHERE taskId = :taskId")
     suspend fun deleteNotesByTaskId(taskId: Long)
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAllNotesSync(): List<Note>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotes(notes: List<Note>)
+
+    @Query("DELETE FROM notes")
+    suspend fun deleteAllNotes()
 }

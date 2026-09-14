@@ -46,4 +46,10 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET reminderEnabled = :reminderEnabled, reminderMinutesBefore = :reminderMinutesBefore WHERE id = :id")
     suspend fun updateTaskReminder(id: Long, reminderEnabled: Boolean, reminderMinutesBefore: Int)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTasks(tasks: List<Task>)
+
+    @Query("DELETE FROM tasks")
+    suspend fun deleteAllTasks()
 }
