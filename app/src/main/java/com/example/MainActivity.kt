@@ -67,7 +67,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val selectedPalette by viewModel.selectedThemePalette.collectAsState()
-            TaskNestTheme(palette = selectedPalette) {
+            val isDarkMode by viewModel.isDarkMode.collectAsState()
+            
+            val darkTheme = isDarkMode ?: androidx.compose.foundation.isSystemInDarkTheme()
+
+            TaskNestTheme(palette = selectedPalette, darkTheme = darkTheme) {
                 MainAppScreen(
                     viewModel = viewModel,
                     initialTaskId = if (navigateTaskId != -1L) navigateTaskId else null

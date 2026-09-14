@@ -97,8 +97,15 @@ class TaskViewModel(
     private val _selectedThemePalette = MutableStateFlow(com.example.ui.theme.AppThemePalette.BLUE)
     val selectedThemePalette: StateFlow<com.example.ui.theme.AppThemePalette> = _selectedThemePalette.asStateFlow()
 
+    private val _isDarkMode = MutableStateFlow<Boolean?>(null)
+    val isDarkMode: StateFlow<Boolean?> = _isDarkMode.asStateFlow()
+
     fun setAppThemePalette(palette: com.example.ui.theme.AppThemePalette) {
         _selectedThemePalette.value = palette
+    }
+
+    fun setDarkMode(isDark: Boolean?) {
+        _isDarkMode.value = isDark
     }
 
     fun openNewNoteHeadingDialog() {
@@ -232,6 +239,7 @@ class TaskViewModel(
         category: Category,
         attachedNoteContent: String,
         checklistItems: List<ChecklistItem>,
+        attachments: List<AttachmentItem> = emptyList(),
         reminderEnabled: Boolean = true,
         reminderMinutesBefore: Int = 0,
         context: Context
@@ -240,6 +248,7 @@ class TaskViewModel(
 
         viewModelScope.launch {
             val checklistEncoded = ChecklistItem.encodeList(checklistItems)
+            val attachmentsEncoded = AttachmentItem.encodeList(attachments)
             val editing = _editingTask.value
 
             if (editing != null) {
@@ -251,6 +260,7 @@ class TaskViewModel(
                     priority = priority,
                     category = category,
                     checklistJson = checklistEncoded,
+                    attachmentsJson = attachmentsEncoded,
                     reminderEnabled = reminderEnabled,
                     reminderMinutesBefore = reminderMinutesBefore
                 )
@@ -280,6 +290,7 @@ class TaskViewModel(
                     priority = priority,
                     category = category,
                     checklistJson = checklistEncoded,
+                    attachmentsJson = attachmentsEncoded,
                     reminderEnabled = reminderEnabled,
                     reminderMinutesBefore = reminderMinutesBefore
                 )

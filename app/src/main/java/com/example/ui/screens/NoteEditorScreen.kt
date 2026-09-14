@@ -240,11 +240,30 @@ fun NoteEditorScreen(
         }
     }
 
+    // File Picker
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val (name, size) = getFileInfo(context, uri)
+            val timeStr = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
+            val newAttachment = AttachmentItem(
+                type = AttachmentType.FILE,
+                title = name,
+                subtitle = "File • $size • Added $timeStr",
+                uriOrUrl = uri.toString()
+            )
+            attachments = attachments + newAttachment
+            persistChanges()
+            Toast.makeText(context, "File added", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Scaffold(
         modifier = modifier
             .fillMaxSize()
             .testTag("note_editor_screen"),
-        containerColor = Color(0xFFF7F3EB),
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
         topBar = {
             // Floating White Pill Top App Bar
             Box(
@@ -259,7 +278,7 @@ fun NoteEditorScreen(
                         .height(58.dp)
                         .shadow(4.dp, RoundedCornerShape(30.dp)),
                     shape = RoundedCornerShape(30.dp),
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.surface
                 ) {
                     Row(
                         modifier = Modifier
@@ -273,7 +292,7 @@ fun NoteEditorScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFEDE7F6))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
                                 .clickable {
                                     persistChanges()
                                     onBack()
@@ -284,7 +303,7 @@ fun NoteEditorScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = "Back",
-                                tint = Color(0xFF1C1B1F),
+                                tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -295,14 +314,14 @@ fun NoteEditorScreen(
                             style = TextStyle(
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1C1B1F)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
 
                         // Right: Pastel green pill badge with paperclip
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = Color(0xFFE2F0E6),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
                             modifier = Modifier.testTag("note_attachments_badge")
                         ) {
                             Row(
@@ -312,7 +331,7 @@ fun NoteEditorScreen(
                                 Icon(
                                     imageVector = Icons.Rounded.AttachFile,
                                     contentDescription = null,
-                                    tint = Color(0xFF1B5E20),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier
                                         .size(15.dp)
                                         .rotate(-45f)
@@ -323,7 +342,7 @@ fun NoteEditorScreen(
                                     style = TextStyle(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1B5E20)
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                 )
                             }
@@ -346,7 +365,7 @@ fun NoteEditorScreen(
                         .height(64.dp)
                         .shadow(8.dp, RoundedCornerShape(32.dp)),
                     shape = RoundedCornerShape(32.dp),
-                    color = Color(0xFFEFE8F6)
+                    color = MaterialTheme.colorScheme.tertiaryContainer
                 ) {
                     Row(
                         modifier = Modifier
@@ -359,8 +378,8 @@ fun NoteEditorScreen(
                         ToolbarIconButton(
                             icon = Icons.Rounded.Checklist,
                             contentDescription = "Add checklist item",
-                            containerColor = Color(0xFFC8E6C9),
-                            contentColor = Color(0xFF2E7D32),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             testTag = "toolbar_checklist_button",
                             onClick = {
                                 showAddChecklistDialog = true
@@ -371,8 +390,8 @@ fun NoteEditorScreen(
                         ToolbarIconButton(
                             icon = Icons.Rounded.Image,
                             contentDescription = "Add image",
-                            containerColor = Color(0xFFD0E4FF),
-                            contentColor = Color(0xFF1565C0),
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                             testTag = "toolbar_image_button",
                             onClick = {
                                 imagePickerLauncher.launch(
@@ -385,8 +404,8 @@ fun NoteEditorScreen(
                         ToolbarIconButton(
                             icon = Icons.Rounded.Videocam,
                             contentDescription = "Add video",
-                            containerColor = Color(0xFFFCD8E2),
-                            contentColor = Color(0xFFC2185B),
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                             testTag = "toolbar_video_button",
                             onClick = {
                                 videoPickerLauncher.launch(
@@ -399,8 +418,8 @@ fun NoteEditorScreen(
                         ToolbarIconButton(
                             icon = Icons.Rounded.Link,
                             contentDescription = "Add link",
-                            containerColor = Color(0xFFE8DEF8),
-                            contentColor = Color(0xFF7B1FA2),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.primary,
                             testTag = "toolbar_link_button",
                             onClick = {
                                 showLinkDialog = true
@@ -411,8 +430,8 @@ fun NoteEditorScreen(
                         ToolbarIconButton(
                             icon = Icons.Rounded.GraphicEq,
                             contentDescription = "Record audio memo",
-                            containerColor = Color(0xFFFFE0B2),
-                            contentColor = Color(0xFFE65100),
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
                             testTag = "toolbar_audio_button",
                             onClick = {
                                 val perm = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
@@ -424,12 +443,24 @@ fun NoteEditorScreen(
                             }
                         )
 
+                        // 5b. File Button (Soft Teal)
+                        ToolbarIconButton(
+                            icon = Icons.Rounded.AttachFile,
+                            contentDescription = "Attach file",
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            testTag = "toolbar_file_button",
+                            onClick = {
+                                filePickerLauncher.launch("*/*")
+                            }
+                        )
+
                         // Divider
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
                                 .height(26.dp)
-                                .background(Color(0xFFD3C8E0))
+                                .background(MaterialTheme.colorScheme.outlineVariant)
                         )
 
                         // 6. Bold 'B'
@@ -437,7 +468,7 @@ fun NoteEditorScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(if (isBold) Color(0xFF6750A4) else Color(0xFFE6DEF0))
+                                .background(if (isBold) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
                                 .clickable {
                                     isBold = !isBold
                                     persistChanges()
@@ -450,7 +481,7 @@ fun NoteEditorScreen(
                                 style = TextStyle(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = if (isBold) Color.White else Color(0xFF1C1B1F)
+                                    color = if (isBold) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
                                 )
                             )
                         }
@@ -460,7 +491,7 @@ fun NoteEditorScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(if (isItalic) Color(0xFF6750A4) else Color(0xFFE6DEF0))
+                                .background(if (isItalic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
                                 .clickable {
                                     isItalic = !isItalic
                                     persistChanges()
@@ -474,7 +505,7 @@ fun NoteEditorScreen(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontStyle = FontStyle.Italic,
-                                    color = if (isItalic) Color.White else Color(0xFF1C1B1F)
+                                    color = if (isItalic) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
                                 )
                             )
                         }
@@ -499,7 +530,7 @@ fun NoteEditorScreen(
                         .shadow(2.dp, RoundedCornerShape(32.dp))
                         .testTag("note_main_card"),
                     shape = RoundedCornerShape(32.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFAF6))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(
                         modifier = Modifier
@@ -517,13 +548,14 @@ fun NoteEditorScreen(
                                 fontSize = 28.sp,
                                 fontWeight = if (isBold) FontWeight.Black else FontWeight.Bold,
                                 fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
-                                color = Color(0xFF1C1B1F)
+                                color = MaterialTheme.colorScheme.onSurface
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("note_title_input")
                         )
 
+                        val squiggleColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
                         // Handwritten Underline Decoration
                         Canvas(
                             modifier = Modifier
@@ -540,7 +572,7 @@ fun NoteEditorScreen(
                             }
                             drawPath(
                                 path = path,
-                                color = Color(0xFF231F20).copy(alpha = 0.55f),
+                                color = squiggleColor,
                                 style = Stroke(
                                     width = 2.4.dp.toPx(),
                                     cap = StrokeCap.Round
@@ -558,7 +590,7 @@ fun NoteEditorScreen(
                             textStyle = TextStyle(
                                 fontSize = 16.sp,
                                 lineHeight = 24.sp,
-                                color = Color(0xFF3C4043),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal
                             ),
                             decorationBox = { innerTextField ->
@@ -568,7 +600,7 @@ fun NoteEditorScreen(
                                         style = TextStyle(
                                             fontSize = 15.sp,
                                             lineHeight = 22.sp,
-                                            color = Color(0xFF9E9E9E)
+                                            color = MaterialTheme.colorScheme.outline
                                         )
                                     )
                                 }
@@ -594,7 +626,7 @@ fun NoteEditorScreen(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.3.sp,
-                                    color = Color(0xFF9E8DB9)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                             // Inline Add button
@@ -608,7 +640,7 @@ fun NoteEditorScreen(
                                 Icon(
                                     imageVector = Icons.Rounded.Add,
                                     contentDescription = "Add item",
-                                    tint = Color(0xFF9E8DB9),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
@@ -616,7 +648,7 @@ fun NoteEditorScreen(
                                     text = "Add",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF9E8DB9)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -627,7 +659,7 @@ fun NoteEditorScreen(
                         if (checklistItems.isEmpty()) {
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = Color(0xFFF3EDF7).copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { showAddChecklistDialog = true }
@@ -641,7 +673,7 @@ fun NoteEditorScreen(
                                     Icon(
                                         imageVector = Icons.Rounded.Add,
                                         contentDescription = null,
-                                        tint = Color(0xFF6750A4),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
@@ -649,7 +681,7 @@ fun NoteEditorScreen(
                                         style = TextStyle(
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = Color(0xFF6750A4)
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     )
                                 }
@@ -685,7 +717,7 @@ fun NoteEditorScreen(
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.3.sp,
-                                color = Color(0xFFE5A18E)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
 
@@ -695,7 +727,7 @@ fun NoteEditorScreen(
                         if (attachments.isEmpty()) {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = Color(0xFFFFF3E0).copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 2.dp)
@@ -709,7 +741,7 @@ fun NoteEditorScreen(
                                         style = TextStyle(
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = Color(0xFFE65100)
+                                            color = MaterialTheme.colorScheme.onErrorContainer
                                         )
                                     )
                                     Spacer(modifier = Modifier.height(3.dp))
@@ -717,7 +749,7 @@ fun NoteEditorScreen(
                                         text = "Use the bottom toolbar to attach photos, videos, web links, or voice memos",
                                         style = TextStyle(
                                             fontSize = 12.sp,
-                                            color = Color(0xFF8D6E63)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         ),
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
@@ -781,8 +813,26 @@ fun NoteEditorScreen(
                                             }
                                         )
                                     }
-                                    AttachmentType.CHECKLIST -> {
-                                        // Handled in checklist section
+                                    AttachmentType.FILE -> {
+                                        FileAttachmentCard(
+                                            attachment = attachment,
+                                            onClick = {
+                                                val url = attachment.uriOrUrl
+                                                try {
+                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "Cannot open file", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            onDelete = {
+                                                attachments = attachments.filterNot { it.id == attachment.id }
+                                                persistChanges()
+                                            }
+                                        )
+                                    }
+                                    else -> {
+                                        // Ignore or generic fallback
                                     }
                                 }
                             }
@@ -804,7 +854,7 @@ fun NoteEditorScreen(
         AlertDialog(
             onDismissRequest = { showLinkDialog = false },
             title = {
-                Text("Add Web Link", fontWeight = FontWeight.Bold, color = Color(0xFF1C1B1F))
+                Text("Add Web Link", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -814,8 +864,8 @@ fun NoteEditorScreen(
                         label = { Text("Web URL") },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF7B1FA2),
-                            focusedLabelColor = Color(0xFF7B1FA2)
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -838,7 +888,7 @@ fun NoteEditorScreen(
                             if (isLoadingMetadata) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             } else {
-                                Text("Auto-fetch Details", color = Color(0xFF7B1FA2), fontSize = 12.sp)
+                                Text("Auto-fetch Details", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                             }
                         }
                     }
@@ -877,7 +927,7 @@ fun NoteEditorScreen(
                         }
                     }
                 ) {
-                    Text("Add Link", fontWeight = FontWeight.Bold, color = Color(0xFF7B1FA2))
+                    Text("Add Link", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
@@ -894,7 +944,7 @@ fun NoteEditorScreen(
         AlertDialog(
             onDismissRequest = { showAddChecklistDialog = false },
             title = {
-                Text("Add Checklist Item", fontWeight = FontWeight.Bold, color = Color(0xFF1C1B1F))
+                Text("Add Checklist Item", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             },
             text = {
                 OutlinedTextField(
@@ -903,8 +953,8 @@ fun NoteEditorScreen(
                     placeholder = { Text("e.g. Test color contrast") },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6750A4),
-                        focusedLabelColor = Color(0xFF6750A4)
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -919,7 +969,7 @@ fun NoteEditorScreen(
                         }
                     }
                 ) {
-                    Text("Add", fontWeight = FontWeight.Bold, color = Color(0xFF6750A4))
+                    Text("Add", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
@@ -987,12 +1037,12 @@ private fun ChecklistItemRow(
                 .size(24.dp)
                 .clip(RoundedCornerShape(7.dp))
                 .background(
-                    if (item.isDone) Color(0xFFEDE7F6).copy(alpha = 0.8f) else Color.Transparent
+                    if (item.isDone) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else Color.Transparent
                 )
                 .border(
                     BorderStroke(
                         1.8.dp,
-                        if (item.isDone) Color(0xFF8669B0) else Color(0xFFDECBC0)
+                        if (item.isDone) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                     ),
                     RoundedCornerShape(7.dp)
                 ),
@@ -1002,7 +1052,7 @@ private fun ChecklistItemRow(
                 Icon(
                     imageVector = Icons.Rounded.Check,
                     contentDescription = null,
-                    tint = Color(0xFF6750A4),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -1017,7 +1067,7 @@ private fun ChecklistItemRow(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 textDecoration = if (item.isDone) TextDecoration.LineThrough else TextDecoration.None,
-                color = if (item.isDone) Color(0xFF635D6B) else Color(0xFF1C1B1F)
+                color = if (item.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
             ),
             modifier = Modifier.weight(1f)
         )
@@ -1038,7 +1088,7 @@ private fun ImageAttachmentCard(
             .fillMaxWidth()
             .shadow(2.dp, RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -1079,7 +1129,7 @@ private fun ImageAttachmentCard(
                     style = TextStyle(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1C1B1F)
+                        color = MaterialTheme.colorScheme.onSurface
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1089,7 +1139,7 @@ private fun ImageAttachmentCard(
                     text = attachment.subtitle.ifBlank { "PNG • 2.4 MB • Added 10:32 AM" },
                     style = TextStyle(
                         fontSize = 12.sp,
-                        color = Color(0xFF7A757F)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1103,14 +1153,14 @@ private fun ImageAttachmentCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFF3EFE9))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { onPreview() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.CropFree,
                     contentDescription = "Fullscreen image",
-                    tint = Color(0xFF49454F),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -1132,7 +1182,7 @@ private fun VideoAttachmentCard(
             .fillMaxWidth()
             .shadow(2.dp, RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -1169,13 +1219,13 @@ private fun VideoAttachmentCard(
                         .size(24.dp)
                         .align(Alignment.Center)
                         .clip(CircleShape)
-                        .background(Color(0xFFF48FB1)),
+                        .background(MaterialTheme.colorScheme.tertiary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PlayArrow,
                         contentDescription = "Play video",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -1194,7 +1244,7 @@ private fun VideoAttachmentCard(
                         style = TextStyle(
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.surface
                         )
                     )
                 }
@@ -1209,7 +1259,7 @@ private fun VideoAttachmentCard(
                     style = TextStyle(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1C1B1F)
+                        color = MaterialTheme.colorScheme.onSurface
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1219,7 +1269,7 @@ private fun VideoAttachmentCard(
                     text = attachment.subtitle.ifBlank { "MP4 • 0:45 • Added 10:35 AM" },
                     style = TextStyle(
                         fontSize = 12.sp,
-                        color = Color(0xFF7A757F)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1233,14 +1283,14 @@ private fun VideoAttachmentCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFF3EFE9))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { onPreview() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.CropFree,
                     contentDescription = "Fullscreen video",
-                    tint = Color(0xFF49454F),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -1263,7 +1313,7 @@ private fun LinkAttachmentCard(
             .shadow(2.dp, RoundedCornerShape(20.dp))
             .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
@@ -1278,7 +1328,7 @@ private fun LinkAttachmentCard(
                 Icon(
                     imageVector = Icons.Rounded.Language,
                     contentDescription = null,
-                    tint = Color(0xFF1C1B1F),
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1287,7 +1337,7 @@ private fun LinkAttachmentCard(
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1C1B1F)
+                        color = MaterialTheme.colorScheme.onSurface
                     ),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
@@ -1297,7 +1347,7 @@ private fun LinkAttachmentCard(
                 Icon(
                     imageVector = Icons.Rounded.Link,
                     contentDescription = "Open link",
-                    tint = Color(0xFF1C1B1F),
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -1309,7 +1359,7 @@ private fun LinkAttachmentCard(
                 text = attachment.subtitle.ifBlank { "https://developer.android.com/design/material/expressive" },
                 style = TextStyle(
                     fontSize = 12.sp,
-                    color = Color(0xFF1976D2),
+                    color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline
                 ),
                 modifier = Modifier.padding(start = 24.dp),
@@ -1324,7 +1374,7 @@ private fun LinkAttachmentCard(
                 text = attachment.extraData.ifBlank { "Explore expressive shapes, dynamic color, and components for Android 16" },
                 style = TextStyle(
                     fontSize = 12.sp,
-                    color = Color(0xFF49454F)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 modifier = Modifier.padding(start = 24.dp),
                 maxLines = 2,
@@ -1460,8 +1510,8 @@ private fun AudioAttachmentCard(
             .fillMaxWidth()
             .shadow(2.dp, RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7EF)),
-        border = BorderStroke(1.dp, Color(0xFFFFE0B2).copy(alpha = 0.6f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f))
     ) {
         Row(
             modifier = Modifier
@@ -1476,7 +1526,7 @@ private fun AudioAttachmentCard(
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
-                            listOf(Color(0xFFFFB74D), Color(0xFFFF9800))
+                            listOf(MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.primary)
                         )
                     )
                     .clickable { onTogglePlay() },
@@ -1485,7 +1535,7 @@ private fun AudioAttachmentCard(
                 Icon(
                     imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.surface,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -1510,7 +1560,7 @@ private fun AudioAttachmentCard(
                     ) {
                         waveformHeights.forEachIndexed { i, h ->
                             val active = (i.toFloat() / waveformHeights.size) <= playbackProgress
-                            val barColor = if (active) Color(0xFFFB8C00) else Color(0xFFFFCC80)
+                            val barColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                             Box(
                                 modifier = Modifier
                                     .width(2.5.dp)
@@ -1528,7 +1578,7 @@ private fun AudioAttachmentCard(
                         style = TextStyle(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Color(0xFF8D6E63)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -1540,7 +1590,7 @@ private fun AudioAttachmentCard(
                     style = TextStyle(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1C1B1F)
+                        color = MaterialTheme.colorScheme.onSurface
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1552,7 +1602,7 @@ private fun AudioAttachmentCard(
                     text = attachment.subtitle.ifBlank { "Voice Recording" },
                     style = TextStyle(
                         fontSize = 11.sp,
-                        color = Color(0xFF7A757F)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1568,7 +1618,83 @@ private fun AudioAttachmentCard(
                 Icon(
                     imageVector = Icons.Rounded.Delete,
                     contentDescription = "Delete voice memo",
-                    tint = Color(0xFFB00020).copy(alpha = 0.7f),
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Attachment 5: FILE Card
+// ---------------------------------------------------------------------------
+@Composable
+private fun FileAttachmentCard(
+    attachment: AttachmentItem,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(20.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AttachFile,
+                    contentDescription = "File",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = attachment.title,
+                    style = TextStyle(
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = attachment.subtitle,
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = "Delete file",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -1662,7 +1788,7 @@ private fun VoiceRecordingDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Voice Memo", fontWeight = FontWeight.Bold, color = Color(0xFF1C1B1F))
+            Text("Voice Memo", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         },
         text = {
             Column(
@@ -1676,20 +1802,20 @@ private fun VoiceRecordingDialog(
                     modifier = Modifier
                         .size(72.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFFFE0B2)),
+                        .background(MaterialTheme.colorScheme.errorContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
                         modifier = Modifier
                             .size((52 * pulseScale).dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFF9800)),
+                            .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Mic,
                             contentDescription = "Recording",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.surface,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -1702,7 +1828,7 @@ private fun VoiceRecordingDialog(
                     style = TextStyle(
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE65100)
+                        color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 )
 
@@ -1745,9 +1871,9 @@ private fun VoiceRecordingDialog(
                 }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Stop, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Rounded.Stop, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Stop & Save", fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                    Text("Stop & Save", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
         },
@@ -1771,7 +1897,7 @@ private fun MediaPreviewDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
@@ -1791,7 +1917,7 @@ private fun MediaPreviewDialog(
                         text = attachment.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
-                        color = Color(0xFF1C1B1F),
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1808,7 +1934,7 @@ private fun MediaPreviewDialog(
                         .fillMaxWidth()
                         .height(240.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFF5F5F5)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     if (attachment.type == AttachmentType.IMAGE) {
@@ -1849,10 +1975,10 @@ private fun MediaPreviewDialog(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFF48FB1)),
+                                .background(MaterialTheme.colorScheme.tertiary),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(32.dp))
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", tint = MaterialTheme.colorScheme.surface, modifier = Modifier.size(32.dp))
                         }
                     }
                 }

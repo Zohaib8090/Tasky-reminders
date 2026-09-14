@@ -83,6 +83,12 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.data.model.AttachmentItem
+import com.example.data.model.AttachmentType
+import androidx.compose.material.icons.rounded.Favorite
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTaskBottomSheet(
@@ -122,6 +128,48 @@ fun AddTaskBottomSheet(
         }
     }
     var newChecklistText by remember { mutableStateOf("") }
+
+    // Attachment state
+    val attachments = remember {
+        mutableStateListOf<AttachmentItem>().apply {
+            if (editingTask != null) {
+                addAll(AttachmentItem.decodeList(editingTask.attachmentsJson))
+            }
+        }
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            var fileName = "Attached File"
+            if (uri.scheme == "content") {
+                try {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) {
+                                fileName = cursor.getString(nameIndex)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            } else {
+                fileName = uri.lastPathSegment ?: fileName
+            }
+
+            attachments.add(
+                AttachmentItem(
+                    type = AttachmentType.FILE,
+                    title = fileName,
+                    subtitle = "Tap to open",
+                    uriOrUrl = uri.toString()
+                )
+            )
+        }
+    }
 
     // Calendar helper for picker dialogs
     val calendar = Calendar.getInstance().apply { timeInMillis = dueDateMillis }
@@ -723,6 +771,78 @@ fun AddTaskBottomSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // File Attachments
+            Text(
+                text = "File Attachments",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = { filePickerLauncher.launch("*/*") },
+                shape = PillShape,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Favorite,
+                    contentDescription = "Attach File",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Attach PDF, Audio, or File")
+            }
+
+            if (attachments.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                attachments.forEachIndexed { index, item ->
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Favorite,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = item.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = { attachments.removeAt(index) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Remove Attachment",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Save Task Action Button
@@ -739,6 +859,7 @@ fun AddTaskBottomSheet(
                             category = selectedCategory,
                             attachedNoteContent = attachedNote,
                             checklistItems = checklistItems.toList(),
+                            attachments = attachments.toList(),
                             reminderEnabled = reminderEnabled,
                             reminderMinutesBefore = reminderMinutesBefore,
                             context = context
