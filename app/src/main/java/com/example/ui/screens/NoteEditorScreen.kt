@@ -47,11 +47,14 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -64,6 +67,11 @@ import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Language
@@ -147,12 +155,29 @@ fun NoteEditorScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val contentFocusRequester = remember { FocusRequester() }
+    val titleFocusRequester = remember { FocusRequester() }
 
     // State for Note properties
-    var title by remember(note?.id) { mutableStateOf(note?.title.orEmpty().ifBlank { "Untitled Note" }) }
+    var title by remember(note?.id) {
+        mutableStateOf(
+            if (note?.title == "Untitled Note") "" else note?.title.orEmpty()
+        )
+    }
     var content by remember(note?.id) { mutableStateOf(note?.content.orEmpty()) }
     var isBold by remember(note?.id) { mutableStateOf(note?.isBold ?: false) }
     var isItalic by remember(note?.id) { mutableStateOf(note?.isItalic ?: false) }
+
+    // Auto-focus cursor when entering editor
+    LaunchedEffect(note?.id) {
+        delay(200)
+        if (title.isBlank()) {
+            titleFocusRequester.requestFocus()
+        } else if (content.isBlank()) {
+            contentFocusRequester.requestFocus()
+        }
+    }
 
     var checklistItems by remember(note?.id) {
         mutableStateOf(
@@ -176,8 +201,9 @@ fun NoteEditorScreen(
 
     // Auto-save helper
     fun persistChanges() {
-        val currentNote = (note ?: Note(title = title)).copy(
-            title = title,
+        val displayTitle = title.trim().ifBlank { "Untitled Note" }
+        val currentNote = (note ?: Note(title = displayTitle)).copy(
+            title = displayTitle,
             content = content,
             isBold = isBold,
             isItalic = isItalic,
@@ -262,6 +288,7 @@ fun NoteEditorScreen(
     Scaffold(
         modifier = modifier
             .fillMaxSize()
+            .imePadding()
             .testTag("note_editor_screen"),
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         topBar = {
@@ -312,38 +339,63 @@ fun NoteEditorScreen(
                         Text(
                             text = "Note editor",
                             style = TextStyle(
-                                fontSize = 19.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         )
 
-                        // Right: Pastel green pill badge with paperclip
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.testTag("note_attachments_badge")
+                        // Right: Attachments badge + Done button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.testTag("note_attachments_badge")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .rotate(-45f)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "${attachments.size}",
+                                        style = TextStyle(
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .clickable {
+                                        persistChanges()
+                                        onBack()
+                                    }
+                                    .testTag("note_editor_done_button"),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.AttachFile,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier
-                                        .size(15.dp)
-                                        .rotate(-45f)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "${attachments.size} attachments",
-                                    style = TextStyle(
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = "Save and Close",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -370,10 +422,24 @@ fun NoteEditorScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 12.dp),
+                            .padding(horizontal = 8.dp)
+                            .horizontalScroll(rememberScrollState()),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // 0. Primary Text / Type Button
+                        ToolbarIconButton(
+                            icon = Icons.Rounded.Edit,
+                            contentDescription = "Write note text",
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            testTag = "toolbar_text_button",
+                            onClick = {
+                                contentFocusRequester.requestFocus()
+                                keyboardController?.show()
+                            }
+                        )
+
                         // 1. Checklist Button (Active Green)
                         ToolbarIconButton(
                             icon = Icons.Rounded.Checklist,
@@ -537,7 +603,7 @@ fun NoteEditorScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 22.dp, vertical = 24.dp)
                     ) {
-                        // Title TextField: "Weekend Project Plan"
+                        // Title TextField
                         BasicTextField(
                             value = title,
                             onValueChange = {
@@ -545,17 +611,34 @@ fun NoteEditorScreen(
                                 persistChanges()
                             },
                             textStyle = TextStyle(
-                                fontSize = 28.sp,
+                                fontSize = 26.sp,
                                 fontWeight = if (isBold) FontWeight.Black else FontWeight.Bold,
                                 fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
                                 color = MaterialTheme.colorScheme.onSurface
                             ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { innerTextField ->
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    if (title.isEmpty()) {
+                                        Text(
+                                            text = "Note Title",
+                                            style = TextStyle(
+                                                fontSize = 26.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+                                            )
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .focusRequester(titleFocusRequester)
                                 .testTag("note_title_input")
                         )
 
-                        val squiggleColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                        val squiggleColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
                         // Handwritten Underline Decoration
                         Canvas(
                             modifier = Modifier
@@ -580,39 +663,116 @@ fun NoteEditorScreen(
                             )
                         }
 
-                        // Note Body / Content TextField
-                        BasicTextField(
-                            value = content,
-                            onValueChange = {
-                                content = it
-                                persistChanges()
-                            },
-                            textStyle = TextStyle(
-                                fontSize = 16.sp,
-                                lineHeight = 24.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal
-                            ),
-                            decorationBox = { innerTextField ->
-                                if (content.isEmpty()) {
-                                    Text(
-                                        text = "Write your thoughts, description, notes, or ideas here...",
-                                        style = TextStyle(
-                                            fontSize = 15.sp,
-                                            lineHeight = 22.sp,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Note Body / Text Content Area Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "NOTE TEXT",
+                                    style = TextStyle(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.3.sp,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
-                                }
-                                innerTextField()
-                            },
+                                )
+                            }
+
+                            val wordCount = remember(content) {
+                                if (content.isBlank()) 0 else content.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+                            }
+                            Text(
+                                text = "$wordCount words • ${content.length} chars",
+                                style = TextStyle(
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Dedicated Note Text Writing Canvas
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 12.dp)
-                                .testTag("note_content_input")
-                        )
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    contentFocusRequester.requestFocus()
+                                    keyboardController?.show()
+                                }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 220.dp)
+                                    .padding(16.dp)
+                            ) {
+                                BasicTextField(
+                                    value = content,
+                                    onValueChange = {
+                                        content = it
+                                        persistChanges()
+                                    },
+                                    textStyle = TextStyle(
+                                        fontSize = 16.sp,
+                                        lineHeight = 25.sp,
+                                        fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
+                                        fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    decorationBox = { innerTextField ->
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .defaultMinSize(minHeight = 200.dp)
+                                        ) {
+                                            if (content.isEmpty()) {
+                                                Text(
+                                                    text = "Tap here to start writing your note...\n\nWrite your thoughts, daily plans, ideas, or meeting notes. You can write paragraphs, lists, or quick memos freely.",
+                                                    style = TextStyle(
+                                                        fontSize = 15.sp,
+                                                        lineHeight = 24.sp,
+                                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
+                                                    )
+                                                )
+                                            }
+                                            innerTextField()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .defaultMinSize(minHeight = 200.dp)
+                                        .focusRequester(contentFocusRequester)
+                                        .testTag("note_content_input")
+                                )
+                            }
+                        }
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
 
                         // CHECKLIST Section Header
                         Row(
@@ -621,7 +781,7 @@ fun NoteEditorScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "CHECKLIST",
+                                text = "CHECKLIST (${checklistItems.size})",
                                 style = TextStyle(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
@@ -634,50 +794,50 @@ fun NoteEditorScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { showAddChecklistDialog = true }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Add,
                                     contentDescription = "Add item",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(14.dp)
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(2.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "Add",
-                                    fontSize = 11.sp,
+                                    text = "Add Item",
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // Checklist Items or Empty prompt
+                        // Checklist Items or Compact Empty prompt
                         if (checklistItems.isEmpty()) {
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { showAddChecklistDialog = true }
                                     .padding(vertical = 2.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Add,
+                                        imageVector = Icons.Rounded.Checklist,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                     Text(
-                                        text = "No checklist items yet • Tap to add an item",
+                                        text = "Add checklist items (optional)",
                                         style = TextStyle(
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
@@ -708,50 +868,53 @@ fun NoteEditorScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(26.dp))
+                        Spacer(modifier = Modifier.height(24.dp))
 
                         // ATTACHMENTS Section Header
-                        Text(
-                            text = "ATTACHMENTS",
-                            style = TextStyle(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.3.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "ATTACHMENTS (${attachments.size})",
+                                style = TextStyle(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.3.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
-                        )
+                        }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // Attachment Cards or Empty prompt
+                        // Attachment Cards or Compact Empty prompt
                         if (attachments.isEmpty()) {
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 2.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = "No attachments yet",
-                                        style = TextStyle(
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
+                                    Icon(
+                                        imageVector = Icons.Rounded.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.height(3.dp))
                                     Text(
-                                        text = "Use the bottom toolbar to attach photos, videos, web links, or voice memos",
+                                        text = "Add photos, links, or audio from toolbar below (optional)",
                                         style = TextStyle(
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
                                     )
                                 }
                             }

@@ -122,7 +122,7 @@ fun NotesScreen(
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Enter a title or heading to get started. You can add your checklist, voice memo, and attachments inside.",
+                        text = "Enter a title or heading to get started. You can write your note text, checklist, voice memos, and attachments inside.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
