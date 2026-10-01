@@ -77,6 +77,7 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "Found KEYSTORE_BASE64 secret, decoding to my-upload-key.jks..."
@@ -84,8 +85,18 @@ jobs:
             printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > my-upload-key.jks || true
             echo "Decoded keystore size: $(wc -c < my-upload-key.jks) bytes"
             if keytool -list -keystore my-upload-key.jks -storepass "$STORE_PASSWORD" > /dev/null 2>&1; then
-              echo "Release keystore is valid."
-              echo "HAS_RELEASE_KEY=true" >> "$GITHUB_OUTPUT"
+              echo "Keystore opened; checking the key password..."
+              if keytool -importkeystore -srckeystore my-upload-key.jks -srcstorepass "$STORE_PASSWORD" \
+                   -srcalias upload -srckeypass "$KEY_PASSWORD" \
+                   -destkeystore "$RUNNER_TEMP/keycheck.p12" -deststoretype PKCS12 \
+                   -deststorepass checkcheck -noprompt > /dev/null 2>&1; then
+                rm -f "$RUNNER_TEMP/keycheck.p12"
+                echo "Release keystore and key password are valid."
+                echo "HAS_RELEASE_KEY=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "::error::KEY_PASSWORD is wrong. The keystore opened with STORE_PASSWORD, but the key could not be read. Set KEY_PASSWORD to exactly the same value as STORE_PASSWORD (no spaces)."
+                exit 1
+              fi
             else
               echo "::error::KEYSTORE_BASE64 or STORE_PASSWORD is wrong: the keystore could not be opened. Re-create the KEYSTORE_BASE64 secret with the full output of 'base64 -w0 my-upload-key.jks' and check STORE_PASSWORD."
               exit 1
