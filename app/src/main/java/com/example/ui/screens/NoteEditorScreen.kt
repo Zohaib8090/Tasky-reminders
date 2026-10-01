@@ -163,6 +163,7 @@ fun NoteEditorScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val requestAuth = com.example.util.rememberAuthPrompt()
     val contentFocusRequester = remember { FocusRequester() }
     val titleFocusRequester = remember { FocusRequester() }
 
@@ -356,21 +357,26 @@ fun NoteEditorScreen(
                 }
                 IconButton(
                     onClick = {
-                        if (!isLocked && !BiometricAuth.isAvailable(context)) {
-                            Toast.makeText(
-                                context,
-                                "Set up a screen lock or fingerprint/face unlock in device settings first",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        } else {
-                            isLocked = !isLocked
-                            if (isLocked) note?.id?.let { viewModel.markNoteUnlocked(it) }
+                        if (isLocked) {
+                            isLocked = false
                             persistChanges()
-                            Toast.makeText(
-                                context,
-                                if (isLocked) "Note locked" else "Note unlocked",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            Toast.makeText(context, "Lock removed", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // Locking asks for fingerprint / face / device password first
+                            requestAuth(
+                                "Lock note",
+                                {
+                                    isLocked = true
+                                    note?.id?.let { viewModel.markNoteUnlocked(it) }
+                                    persistChanges()
+                                    Toast.makeText(
+                                        context,
+                                        "Note locked. You'll need your fingerprint, face or password to open it again.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                },
+                                {}
+                            )
                         }
                     },
                     modifier = Modifier

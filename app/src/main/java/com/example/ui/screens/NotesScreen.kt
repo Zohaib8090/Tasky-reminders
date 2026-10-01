@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.rounded.LockOpen
 import com.example.util.rememberAuthPrompt
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.foundation.BorderStroke
@@ -76,6 +81,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NotesScreen(
     viewModel: TaskViewModel,
@@ -88,6 +94,7 @@ fun NotesScreen(
     val haptic = LocalHapticFeedback.current
     val requestAuth = rememberAuthPrompt()
     var noteToDelete by remember { mutableStateOf<Note?>(null) }
+    var menuNoteId by remember { mutableStateOf<Long?>(null) }
 
     // Ask once before deleting any note; locked notes also need authentication
     noteToDelete?.let { pending ->
@@ -497,12 +504,49 @@ fun NotesScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            viewModel.openNoteEditor(note = note)
-                        }
+                        .combinedClickable(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                viewModel.openNoteEditor(note = note)
+                            },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                menuNoteId = note.id
+                            }
+                        )
                         .testTag("note_card_${note.id}")
                 ) {
+                    DropdownMenu(
+                        expanded = menuNoteId == note.id,
+                        onDismissRequest = { menuNoteId = null }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (note.isLocked) "Remove lock" else "Lock note") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (note.isLocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                menuNoteId = null
+                                requestAuth(
+                                    if (note.isLocked) "Remove lock" else "Lock note",
+                                    { viewModel.setNoteLocked(note, !note.isLocked) },
+                                    {}
+                                )
+                            },
+                            modifier = Modifier.testTag("note_menu_lock")
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
+                            onClick = {
+                                menuNoteId = null
+                                noteToDelete = note
+                            }
+                        )
+                    }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()

@@ -378,6 +378,10 @@ class TaskViewModel(
 
     fun closeAddTaskSheet() {
         _isAddTaskSheetVisible.value = false
+        // A locked task re-locks as soon as you leave it (unless its detail sheet is still open)
+        if (!_isTaskDetailSheetVisible.value) {
+            _editingTask.value?.id?.let { _unlockedTaskIds.value = _unlockedTaskIds.value - it }
+        }
         _editingTask.value = null
     }
 
@@ -388,6 +392,7 @@ class TaskViewModel(
 
     fun closeTaskDetail() {
         _isTaskDetailSheetVisible.value = false
+        _selectedTask.value?.id?.let { _unlockedTaskIds.value = _unlockedTaskIds.value - it }
         _selectedTask.value = null
     }
 
@@ -476,7 +481,6 @@ class TaskViewModel(
                 )
                 val taskId = repository.insertTask(newTask)
                 val createdTask = newTask.copy(id = taskId)
-                if (isLocked) markTaskUnlocked(taskId)
                 if (attachedNoteContent.isNotBlank()) {
                     repository.insertNote(
                         Note(
@@ -623,6 +627,24 @@ class TaskViewModel(
         }
     }
 
+    fun setNoteLocked(note: Note, locked: Boolean) {
+        viewModelScope.launch {
+            repository.updateNote(note.copy(isLocked = locked))
+            if (!locked) markNoteUnlocked(note.id)
+            _userMessage.value = if (locked) "Note locked" else "Lock removed"
+        }
+    }
+
+    fun setTaskLocked(task: Task, locked: Boolean) {
+        viewModelScope.launch {
+            val updated = task.copy(isLocked = locked)
+            repository.updateTask(updated)
+            if (!locked) markTaskUnlocked(task.id)
+            appContext?.let { AlarmScheduler.scheduleTaskAlarms(it, updated) }
+            _userMessage.value = if (locked) "Task locked" else "Lock removed"
+        }
+    }
+
     fun deleteNote(note: Note) {
         viewModelScope.launch {
             repository.deleteNote(note)
@@ -659,6 +681,8 @@ class TaskViewModel(
 
     fun closeNoteEditor() {
         _isNoteEditorOpen.value = false
+        // A locked note re-locks as soon as you leave it
+        _editorNote.value?.id?.let { _unlockedNoteIds.value = _unlockedNoteIds.value - it }
     }
 
     fun saveEditorNote(note: Note) {

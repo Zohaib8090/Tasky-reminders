@@ -400,6 +400,13 @@ fun CalendarScreen(
                     notePreview = preview,
                     onCardClick = { viewModel.openTaskDetail(task) },
                     onToggleCompletion = { viewModel.toggleTaskCompletion(task, context) },
+                    onToggleLock = {
+                        requestAuth(
+                            if (task.isLocked) "Remove lock" else "Lock task",
+                            { viewModel.setTaskLocked(task, !task.isLocked) },
+                            {}
+                        )
+                    },
                     onDelete = {
                         if (task.isLocked) {
                             requestAuth("Confirm delete", { viewModel.deleteTask(task, context) }, {})

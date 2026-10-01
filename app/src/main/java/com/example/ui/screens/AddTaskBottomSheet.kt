@@ -117,6 +117,7 @@ fun AddTaskBottomSheet(
 
     // Reminder & Alarm state
     var isLocked by remember { mutableStateOf(editingTask?.isLocked ?: false) }
+    val requestAuth = com.example.util.rememberAuthPrompt()
     var reminderEnabled by remember { mutableStateOf(editingTask?.reminderEnabled ?: true) }
     var reminderMinutesBefore by remember { mutableStateOf(editingTask?.reminderMinutesBefore ?: 0) }
 
@@ -487,14 +488,11 @@ fun AddTaskBottomSheet(
                     Switch(
                         checked = isLocked,
                         onCheckedChange = { wantLock ->
-                            if (wantLock && !BiometricAuth.isAvailable(context)) {
-                                Toast.makeText(
-                                    context,
-                                    "Set up a screen lock or fingerprint/face unlock in device settings first",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                            if (wantLock) {
+                                // Locking asks for fingerprint / face / device password first
+                                requestAuth("Lock this task", { isLocked = true }, {})
                             } else {
-                                isLocked = wantLock
+                                isLocked = false
                             }
                         },
                         modifier = Modifier.testTag("task_lock_switch")

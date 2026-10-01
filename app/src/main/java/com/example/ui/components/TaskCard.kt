@@ -1,5 +1,13 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -58,7 +66,7 @@ import com.example.ui.theme.getCategoryColor
 import com.example.ui.theme.getCategoryOnColor
 import com.example.ui.theme.getPriorityColor
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TaskCard(
     task: Task,
@@ -66,9 +74,11 @@ fun TaskCard(
     onCardClick: () -> Unit,
     onToggleCompletion: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onToggleLock: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
+    var menuOpen by remember { mutableStateOf(false) }
     val isDark = isSystemInDarkTheme()
 
     val dismissState = rememberSwipeToDismissBoxState(
@@ -166,12 +176,42 @@ fun TaskCard(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onCardClick()
-                }
+                .combinedClickable(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onCardClick()
+                    },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    }
+                )
                 .testTag("task_card_${task.id}")
         ) {
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(if (task.isLocked) "Remove lock" else "Lock task") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (task.isLocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        onToggleLock()
+                    },
+                    modifier = Modifier.testTag("task_menu_lock")
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        onDelete()
+                    }
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
