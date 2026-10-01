@@ -87,6 +87,34 @@ fun NotesScreen(
 ) {
     val haptic = LocalHapticFeedback.current
     val requestAuth = rememberAuthPrompt()
+    var noteToDelete by remember { mutableStateOf<Note?>(null) }
+
+    // Ask once before deleting any note; locked notes also need authentication
+    noteToDelete?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { noteToDelete = null },
+            title = { Text("Delete this note?") },
+            text = { Text("This can't be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        noteToDelete = null
+                        if (pending.isLocked) {
+                            requestAuth("Confirm delete", { viewModel.deleteNote(pending) }, {})
+                        } else {
+                            viewModel.deleteNote(pending)
+                        }
+                    },
+                    modifier = Modifier.testTag("confirm_delete_note")
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
     val isDark = isSystemInDarkTheme()
     var searchQuery by remember { mutableStateOf("") }
 
@@ -505,11 +533,7 @@ fun NotesScreen(
                             IconButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    if (note.isLocked) {
-                                        requestAuth("Confirm delete", { viewModel.deleteNote(note) }, {})
-                                    } else {
-                                        viewModel.deleteNote(note)
-                                    }
+                                    noteToDelete = note
                                 },
                                 modifier = Modifier
                                     .size(24.dp)
