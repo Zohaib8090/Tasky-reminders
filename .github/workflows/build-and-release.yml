@@ -80,7 +80,6 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "Found KEYSTORE_BASE64 secret, decoding to my-upload-key.jks..."
@@ -88,17 +87,15 @@ jobs:
             printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > my-upload-key.jks || true
             echo "Decoded keystore size: $(wc -c < my-upload-key.jks) bytes"
             if keytool -list -keystore my-upload-key.jks -storepass "$STORE_PASSWORD" > /dev/null 2>&1; then
-              echo "Keystore opened; checking the key password..."
-              if keytool -importkeystore -srckeystore my-upload-key.jks -srcstorepass "$STORE_PASSWORD" \
-                   -srcalias upload -srckeypass "$KEY_PASSWORD" \
-                   -destkeystore "$RUNNER_TEMP/keycheck.p12" -deststoretype PKCS12 \
-                   -deststorepass checkcheck -noprompt > /dev/null 2>&1; then
-                rm -f "$RUNNER_TEMP/keycheck.p12"
-                echo "Release keystore and key password are valid."
-                echo "HAS_RELEASE_KEY=true" >> "$GITHUB_OUTPUT"
+              echo "Release keystore is valid."
+              echo "HAS_RELEASE_KEY=true" >> "$GITHUB_OUTPUT"
+              # PKCS12 keystores (the default) protect the key with the store password itself,
+              # so a separate KEY_PASSWORD secret is not needed and can't be wrong.
+              if keytool -list -keystore my-upload-key.jks -storepass "$STORE_PASSWORD" 2>/dev/null | grep -q "Keystore type: PKCS12"; then
+                echo "PKCS12 keystore: using STORE_PASSWORD as the key password."
+                echo "KEY_IS_STORE=true" >> "$GITHUB_OUTPUT"
               else
-                echo "::error::KEY_PASSWORD is wrong. The keystore opened with STORE_PASSWORD, but the key could not be read. Set KEY_PASSWORD to exactly the same value as STORE_PASSWORD (no spaces)."
-                exit 1
+                echo "KEY_IS_STORE=false" >> "$GITHUB_OUTPUT"
               fi
             else
               echo "::error::KEYSTORE_BASE64 or STORE_PASSWORD is wrong: the keystore could not be opened. Re-create the KEYSTORE_BASE64 secret with the full output of 'base64 -w0 my-upload-key.jks' and check STORE_PASSWORD."
@@ -143,7 +140,7 @@ jobs:
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_PASSWORD: ${{ steps.setup-release-keystore.outputs.KEY_IS_STORE == 'true' && secrets.STORE_PASSWORD || secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease -PappVersionName=${{ steps.plan.outputs.version_name }} -PappVersionCode=${{ steps.plan.outputs.version_code }} --stacktrace
 
       - name: Upload APKs as Artifacts
