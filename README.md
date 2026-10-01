@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/branding/logo.png" alt="TaskNest logo" width="128"></p>
+
 # TaskNest
 
 A local-first Android app for **tasks with reminders** and **notes**, built with Kotlin, Jetpack Compose and Material 3. Create a task, attach notes and a checklist to it, and get reminded on time. Or just use it as a clean notes app. Everything is stored on your device; there is no account and no server.

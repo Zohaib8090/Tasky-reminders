@@ -134,7 +134,7 @@ class TaskAlarmReceiver : BroadcastReceiver() {
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_tasknest)
             .setContentTitle(taskTitle)
             .setContentText(summaryMessage)
             .setStyle(
