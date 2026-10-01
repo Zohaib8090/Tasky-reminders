@@ -2,7 +2,7 @@
 
 Native Android app (Kotlin, Jetpack Compose, Material 3) for tasks with reminders, rich notes, and a calendar view. Local-first: all data lives in a Room database; no backend sync.
 
-- **Application ID:** `com.aistudio.tasknest.zvxql` · **namespace:** `com.example`
+- **Application ID:** `com.zohaib.tasknest` · **namespace:** `com.example`
 - **SDK:** minSdk 24, target/compile 36 · **Version:** 1.0 (code 1)
 - **Build:** AGP 9.1.1, Kotlin 2.2.10, KSP, JDK 11 source level (CI uses JDK 21)
 - **Origin:** generated with Google AI Studio (`metadata.json`, `.env.example`, Secrets plugin)

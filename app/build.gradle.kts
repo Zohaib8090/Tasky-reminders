@@ -14,7 +14,7 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.tasknest.zvxql"
+    applicationId = "com.zohaib.tasknest"
     minSdk = 24
     targetSdk = 36
     // CI passes the release version (from the git tag); local builds default to 1 / "1.0"
