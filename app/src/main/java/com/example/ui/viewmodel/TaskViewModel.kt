@@ -228,6 +228,19 @@ class TaskViewModel(
     private val _userMessage = MutableStateFlow<String?>(null)
     val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
 
+    // Items the user has unlocked this session (cleared when the app leaves the foreground)
+    private val _unlockedTaskIds = MutableStateFlow<Set<Long>>(emptySet())
+    val unlockedTaskIds: StateFlow<Set<Long>> = _unlockedTaskIds.asStateFlow()
+    private val _unlockedNoteIds = MutableStateFlow<Set<Long>>(emptySet())
+    val unlockedNoteIds: StateFlow<Set<Long>> = _unlockedNoteIds.asStateFlow()
+
+    fun markTaskUnlocked(id: Long) { _unlockedTaskIds.value = _unlockedTaskIds.value + id }
+    fun markNoteUnlocked(id: Long) { _unlockedNoteIds.value = _unlockedNoteIds.value + id }
+    fun relockAll() {
+        _unlockedTaskIds.value = emptySet()
+        _unlockedNoteIds.value = emptySet()
+    }
+
     // Notes for the selected task
     val selectedTaskNotes: StateFlow<List<Note>> = _selectedTask
         .flatMapLatest { task ->
@@ -237,7 +250,7 @@ class TaskViewModel(
 
     // First note preview cache for all tasks: map taskId -> note preview text
     val taskNotePreviews: StateFlow<Map<Long, String>> = allNotes.combine(allTasks) { notes, _ ->
-        notes.filter { it.taskId != null }
+        notes.filter { it.taskId != null && !it.isLocked }
             .groupBy { it.taskId!! }
             .mapValues { entry -> entry.value.firstOrNull()?.content ?: "" }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
@@ -253,7 +266,7 @@ class TaskViewModel(
         val todayEnd = todayStart + (24 * 60 * 60 * 1000L) - 1
         val trimmed = query.trim()
 
-        val notesByTaskId = notes.filter { it.taskId != null }
+        val notesByTaskId = notes.filter { it.taskId != null && !it.isLocked }
             .groupBy { it.taskId!! }
             .mapValues { entry ->
                 entry.value.joinToString(" ") { "${it.title} ${it.content}" }
@@ -351,6 +364,7 @@ class TaskViewModel(
         attachments: List<AttachmentItem> = emptyList(),
         reminderEnabled: Boolean = true,
         reminderMinutesBefore: Int = 0,
+        isLocked: Boolean = false,
         context: Context
     ) {
         if (title.isBlank()) return
@@ -371,9 +385,11 @@ class TaskViewModel(
                     checklistJson = checklistEncoded,
                     attachmentsJson = attachmentsEncoded,
                     reminderEnabled = reminderEnabled,
-                    reminderMinutesBefore = reminderMinutesBefore
+                    reminderMinutesBefore = reminderMinutesBefore,
+                    isLocked = isLocked
                 )
                 repository.updateTask(updated)
+                if (isLocked) markTaskUnlocked(updated.id)
                 if (attachedNoteContent.isNotBlank()) {
                     repository.insertNote(
                         Note(
@@ -401,10 +417,12 @@ class TaskViewModel(
                     checklistJson = checklistEncoded,
                     attachmentsJson = attachmentsEncoded,
                     reminderEnabled = reminderEnabled,
-                    reminderMinutesBefore = reminderMinutesBefore
+                    reminderMinutesBefore = reminderMinutesBefore,
+                    isLocked = isLocked
                 )
                 val taskId = repository.insertTask(newTask)
                 val createdTask = newTask.copy(id = taskId)
+                if (isLocked) markTaskUnlocked(taskId)
                 if (attachedNoteContent.isNotBlank()) {
                     repository.insertNote(
                         Note(

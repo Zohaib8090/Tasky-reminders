@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -326,7 +327,23 @@ fun TaskCard(
                             overflow = TextOverflow.Ellipsis
                         )
 
-                        if (task.description.isNotBlank()) {
+                        if (task.isLocked) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Lock,
+                                    contentDescription = "Locked task",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Locked",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else if (task.description.isNotBlank()) {
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = task.description,
@@ -340,7 +357,7 @@ fun TaskCard(
                 }
 
                 val checklistItems = ChecklistItem.decodeList(task.checklistJson)
-                if (checklistItems.isNotEmpty()) {
+                if (checklistItems.isNotEmpty() && !task.isLocked) {
                     val doneCount = checklistItems.count { it.isDone }
                     val totalCount = checklistItems.size
 
@@ -369,7 +386,7 @@ fun TaskCard(
                     }
                 }
 
-                if (!notePreview.isNullOrBlank()) {
+                if (!notePreview.isNullOrBlank() && !task.isLocked) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(
                         modifier = Modifier

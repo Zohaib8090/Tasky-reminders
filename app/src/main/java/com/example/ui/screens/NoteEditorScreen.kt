@@ -13,6 +13,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.example.util.AudioHelper
+import com.example.util.BiometricAuth
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import java.io.File
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -116,7 +119,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -137,8 +139,6 @@ import com.example.data.model.AttachmentItem
 import com.example.data.model.AttachmentType
 import com.example.data.model.ChecklistItem
 import com.example.data.model.Note
-import com.example.ui.theme.NoteDarkColors
-import com.example.ui.theme.NotePastelColors
 import com.example.ui.viewmodel.TaskViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -173,7 +173,7 @@ fun NoteEditorScreen(
         )
     }
     var content by remember(note?.id) { mutableStateOf(note?.content.orEmpty()) }
-    var colorIndex by remember(note?.id) { mutableStateOf(note?.colorIndex ?: 0) }
+    var isLocked by remember(note?.id) { mutableStateOf(note?.isLocked ?: false) }
     var isBold by remember(note?.id) { mutableStateOf(note?.isBold ?: false) }
     var isItalic by remember(note?.id) { mutableStateOf(note?.isItalic ?: false) }
 
@@ -213,7 +213,7 @@ fun NoteEditorScreen(
         val currentNote = (note ?: Note(title = displayTitle)).copy(
             title = displayTitle,
             content = content,
-            colorIndex = colorIndex,
+            isLocked = isLocked,
             isBold = isBold,
             isItalic = isItalic,
             checklistJson = ChecklistItem.encodeList(checklistItems),
@@ -294,8 +294,8 @@ fun NoteEditorScreen(
         }
     }
 
-    val noteColors = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) NoteDarkColors else NotePastelColors
-    val paper = noteColors[colorIndex.coerceIn(0, noteColors.lastIndex)]
+    // Follows the app theme (palette + dark mode chosen in Settings)
+    val paper = MaterialTheme.colorScheme.background
     val cardFill = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     val mutedInk = MaterialTheme.colorScheme.onSurfaceVariant
     val allTasks by viewModel.allTasks.collectAsState()
@@ -351,6 +351,35 @@ fun NoteEditorScreen(
                             fontWeight = FontWeight.SemiBold,
                             color = mutedInk
                         )
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        if (!isLocked && !BiometricAuth.isAvailable(context)) {
+                            Toast.makeText(
+                                context,
+                                "Set up a screen lock or fingerprint/face unlock in device settings first",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            isLocked = !isLocked
+                            if (isLocked) note?.id?.let { viewModel.markNoteUnlocked(it) }
+                            persistChanges()
+                            Toast.makeText(
+                                context,
+                                if (isLocked) "Note locked" else "Note unlocked",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("note_lock_button")
+                ) {
+                    Icon(
+                        imageVector = if (isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                        contentDescription = if (isLocked) "Unlock note" else "Lock note",
+                        tint = if (isLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Row(
@@ -609,41 +638,6 @@ fun NoteEditorScreen(
             }
 
             item {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    noteColors.forEachIndexed { index, color ->
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clickable {
-                                    colorIndex = index
-                                    persistChanges()
-                                }
-                                .testTag("note_color_$index"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .border(
-                                        BorderStroke(
-                                            if (index == colorIndex) 2.dp else 1.dp,
-                                            if (index == colorIndex) MaterialTheme.colorScheme.primary
-                                            else mutedInk.copy(alpha = 0.5f)
-                                        ),
-                                        CircleShape
-                                    )
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
                 BasicTextField(
                     value = content,
                     onValueChange = {
@@ -681,7 +675,7 @@ fun NoteEditorScreen(
                 )
             }
 
-            item {
+            if (checklistItems.isNotEmpty()) item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -704,7 +698,7 @@ fun NoteEditorScreen(
                                 color = mutedInk
                             )
                         )
-                        if (checklistItems.isNotEmpty()) {
+                        run {
                             Text(
                                 text = "${checklistItems.count { it.isDone }} of ${checklistItems.size}",
                                 style = TextStyle(
@@ -899,7 +893,7 @@ fun NoteEditorScreen(
                                     .weight(1f)
                                     .defaultMinSize(minHeight = 96.dp)
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(paper)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable {
                                         showAttachSheet = false
                                         when (tag) {

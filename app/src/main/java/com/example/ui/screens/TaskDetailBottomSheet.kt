@@ -648,7 +648,7 @@ fun TaskDetailBottomSheet(
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
                             Text(
-                                text = note.content,
+                                text = if (note.isLocked) "Locked note" else note.content,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

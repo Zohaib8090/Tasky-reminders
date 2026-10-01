@@ -57,7 +57,8 @@ data class Task(
     val attachmentsJson: String = "", // Stores encoded AttachmentItem list
     val reminderEnabled: Boolean = true,
     val reminderMinutesBefore: Int = 0, // 0 = at due time, 5, 10, 15, 30, 60, 1440
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val isLocked: Boolean = false
 ) {
     fun getReminderLabel(): String {
         if (!reminderEnabled) return "Reminder Off"

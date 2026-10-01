@@ -57,7 +57,7 @@ object AlarmScheduler {
                 action = ACTION_TASK_REMINDER
                 putExtra(EXTRA_TASK_ID, task.id)
                 putExtra(EXTRA_TASK_TITLE, task.title)
-                putExtra(EXTRA_TASK_DESCRIPTION, task.description)
+                putExtra(EXTRA_TASK_DESCRIPTION, if (task.isLocked) "" else task.description)
                 putExtra(EXTRA_IS_EARLY, false)
                 putExtra(EXTRA_IS_TEST, false)
                 putExtra(EXTRA_OFFSET_MINUTES, 0)
@@ -80,7 +80,7 @@ object AlarmScheduler {
                     action = ACTION_TASK_REMINDER
                     putExtra(EXTRA_TASK_ID, task.id)
                     putExtra(EXTRA_TASK_TITLE, task.title)
-                    putExtra(EXTRA_TASK_DESCRIPTION, task.description)
+                    putExtra(EXTRA_TASK_DESCRIPTION, if (task.isLocked) "" else task.description)
                     putExtra(EXTRA_IS_EARLY, true)
                     putExtra(EXTRA_IS_TEST, false)
                     putExtra(EXTRA_OFFSET_MINUTES, task.reminderMinutesBefore)

@@ -384,6 +384,7 @@ object BackupManager {
         put("reminderEnabled", task.reminderEnabled)
         put("reminderMinutesBefore", task.reminderMinutesBefore)
         put("createdAt", task.createdAt)
+        put("isLocked", task.isLocked)
     }
 
     private fun jsonToTask(json: JSONObject): Task {
@@ -414,7 +415,8 @@ object BackupManager {
             attachmentsJson = json.optString("attachmentsJson", ""),
             reminderEnabled = json.optBoolean("reminderEnabled", true),
             reminderMinutesBefore = json.optInt("reminderMinutesBefore", 0),
-            createdAt = json.optLong("createdAt", System.currentTimeMillis())
+            createdAt = json.optLong("createdAt", System.currentTimeMillis()),
+            isLocked = json.optBoolean("isLocked", false)
         )
     }
 
@@ -433,6 +435,7 @@ object BackupManager {
         put("isBold", note.isBold)
         put("isItalic", note.isItalic)
         put("createdAt", note.createdAt)
+        put("isLocked", note.isLocked)
     }
 
     private fun jsonToNote(json: JSONObject): Note {
@@ -447,7 +450,8 @@ object BackupManager {
             attachmentsJson = json.optString("attachmentsJson", ""),
             isBold = json.optBoolean("isBold", false),
             isItalic = json.optBoolean("isItalic", false),
-            createdAt = json.optLong("createdAt", System.currentTimeMillis())
+            createdAt = json.optLong("createdAt", System.currentTimeMillis()),
+            isLocked = json.optBoolean("isLocked", false)
         )
     }
 }

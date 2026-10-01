@@ -90,5 +90,6 @@ data class Note(
     val attachmentsJson: String = "",
     val isBold: Boolean = false,
     val isItalic: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val isLocked: Boolean = false
 )

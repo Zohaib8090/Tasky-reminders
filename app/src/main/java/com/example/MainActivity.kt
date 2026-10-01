@@ -1,11 +1,14 @@
 package com.example
 
+import androidx.fragment.app.FragmentActivity
+import androidx.compose.foundation.background
+import androidx.compose.material3.MaterialTheme
+import com.example.util.rememberAuthPrompt
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -49,7 +52,7 @@ import com.example.ui.viewmodel.NavTab
 import com.example.ui.viewmodel.TaskViewModel
 import com.example.workers.TaskSyncWorker
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val viewModel: TaskViewModel by viewModels {
         TaskViewModel.provideFactory(this)
@@ -78,6 +81,12 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Locked tasks/notes require authentication again after leaving the app
+        viewModel.relockAll()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -138,12 +147,51 @@ fun MainAppScreen(
     val isNoteEditorOpen by viewModel.isNoteEditorOpen.collectAsState()
     val editorNote by viewModel.editorNote.collectAsState()
 
+    // Lock gates: locked items need fingerprint / face / device password each session
+    val unlockedNoteIds by viewModel.unlockedNoteIds.collectAsState()
+    val unlockedTaskIds by viewModel.unlockedTaskIds.collectAsState()
+    val requestAuth = rememberAuthPrompt()
+
+    val noteNeedsUnlock = isNoteEditorOpen &&
+        editorNote?.let { it.isLocked && it.id !in unlockedNoteIds } == true
+    val detailNeedsUnlock = isTaskDetailVisible &&
+        selectedTask?.let { it.isLocked && it.id !in unlockedTaskIds } == true
+    val editNeedsUnlock = isAddTaskSheetVisible &&
+        editingTask?.let { it.isLocked && it.id !in unlockedTaskIds } == true
+
+    LaunchedEffect(noteNeedsUnlock, editorNote?.id) {
+        val n = editorNote
+        if (noteNeedsUnlock && n != null) {
+            requestAuth("Unlock note", { viewModel.markNoteUnlocked(n.id) }, { viewModel.closeNoteEditor() })
+        }
+    }
+    LaunchedEffect(detailNeedsUnlock, selectedTask?.id) {
+        val t = selectedTask
+        if (detailNeedsUnlock && t != null) {
+            requestAuth("Unlock task", { viewModel.markTaskUnlocked(t.id) }, { viewModel.closeTaskDetail() })
+        }
+    }
+    LaunchedEffect(editNeedsUnlock, editingTask?.id) {
+        val t = editingTask
+        if (editNeedsUnlock && t != null) {
+            requestAuth("Unlock task", { viewModel.markTaskUnlocked(t.id) }, { viewModel.closeAddTaskSheet() })
+        }
+    }
+
     if (isNoteEditorOpen) {
-        NoteEditorScreen(
-            viewModel = viewModel,
-            note = editorNote,
-            onBack = { viewModel.closeNoteEditor() }
-        )
+        if (noteNeedsUnlock) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            )
+        } else {
+            NoteEditorScreen(
+                viewModel = viewModel,
+                note = editorNote,
+                onBack = { viewModel.closeNoteEditor() }
+            )
+        }
         return
     }
 
@@ -263,7 +311,7 @@ fun MainAppScreen(
         }
 
         // Add Task Bottom Sheet (Modal Bottom Sheet)
-        if (isAddTaskSheetVisible) {
+        if (isAddTaskSheetVisible && !editNeedsUnlock) {
             AddTaskBottomSheet(
                 viewModel = viewModel,
                 editingTask = editingTask,
@@ -272,7 +320,7 @@ fun MainAppScreen(
         }
 
         // Task Detail Bottom Sheet
-        if (isTaskDetailVisible && selectedTask != null) {
+        if (isTaskDetailVisible && selectedTask != null && !detailNeedsUnlock) {
             TaskDetailBottomSheet(
                 viewModel = viewModel,
                 task = selectedTask!!,

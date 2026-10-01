@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.material.icons.rounded.Lock
+import android.widget.Toast
+import com.example.util.BiometricAuth
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.background
@@ -113,6 +116,7 @@ fun AddTaskBottomSheet(
     var dueTimeString by remember { mutableStateOf(editingTask?.dueTime ?: "12:00") }
 
     // Reminder & Alarm state
+    var isLocked by remember { mutableStateOf(editingTask?.isLocked ?: false) }
     var reminderEnabled by remember { mutableStateOf(editingTask?.reminderEnabled ?: true) }
     var reminderMinutesBefore by remember { mutableStateOf(editingTask?.reminderMinutesBefore ?: 0) }
 
@@ -450,6 +454,55 @@ fun AddTaskBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(18.dp))
+
+            // Lock toggle: protects this task with fingerprint / face / device password
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Lock this task",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Fingerprint, face or device password to open",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isLocked,
+                        onCheckedChange = { wantLock ->
+                            if (wantLock && !BiometricAuth.isAvailable(context)) {
+                                Toast.makeText(
+                                    context,
+                                    "Set up a screen lock or fingerprint/face unlock in device settings first",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                isLocked = wantLock
+                            }
+                        },
+                        modifier = Modifier.testTag("task_lock_switch")
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Alarm Reminder Configuration Card
             Surface(
@@ -862,6 +915,7 @@ fun AddTaskBottomSheet(
                             attachments = attachments.toList(),
                             reminderEnabled = reminderEnabled,
                             reminderMinutesBefore = reminderMinutesBefore,
+                            isLocked = isLocked,
                             context = context
                         )
                     }

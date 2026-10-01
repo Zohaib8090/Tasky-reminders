@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -517,7 +518,23 @@ fun NotesScreen(
                             }
                         }
 
-                        if (note.content.isNotBlank()) {
+                        if (note.isLocked) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Lock,
+                                    contentDescription = "Locked note",
+                                    tint = if (isDark) Color(0xFFD0D0D0) else Color(0xFF3C4043),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Locked",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                    color = if (isDark) Color(0xFFD0D0D0) else Color(0xFF3C4043)
+                                )
+                            }
+                        } else if (note.content.isNotBlank()) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = note.content,
