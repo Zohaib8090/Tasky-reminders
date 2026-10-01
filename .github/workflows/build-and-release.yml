@@ -40,10 +40,13 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
 
+      # One cache for Gradle dependencies, wrapper and build outputs. Runs on main save it;
+      # tag and pull request builds reuse it.
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Grant Execute Permission to Gradlew
         run: chmod +x gradlew
