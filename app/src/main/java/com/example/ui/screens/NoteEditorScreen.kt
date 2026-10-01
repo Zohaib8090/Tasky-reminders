@@ -90,6 +90,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -97,6 +99,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -113,6 +116,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -133,6 +137,8 @@ import com.example.data.model.AttachmentItem
 import com.example.data.model.AttachmentType
 import com.example.data.model.ChecklistItem
 import com.example.data.model.Note
+import com.example.ui.theme.NoteDarkColors
+import com.example.ui.theme.NotePastelColors
 import com.example.ui.viewmodel.TaskViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -146,6 +152,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditorScreen(
     viewModel: TaskViewModel,
@@ -166,6 +173,7 @@ fun NoteEditorScreen(
         )
     }
     var content by remember(note?.id) { mutableStateOf(note?.content.orEmpty()) }
+    var colorIndex by remember(note?.id) { mutableStateOf(note?.colorIndex ?: 0) }
     var isBold by remember(note?.id) { mutableStateOf(note?.isBold ?: false) }
     var isItalic by remember(note?.id) { mutableStateOf(note?.isItalic ?: false) }
 
@@ -205,6 +213,7 @@ fun NoteEditorScreen(
         val currentNote = (note ?: Note(title = displayTitle)).copy(
             title = displayTitle,
             content = content,
+            colorIndex = colorIndex,
             isBold = isBold,
             isItalic = isItalic,
             checklistJson = ChecklistItem.encodeList(checklistItems),
@@ -285,256 +294,135 @@ fun NoteEditorScreen(
         }
     }
 
+    val noteColors = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) NoteDarkColors else NotePastelColors
+    val paper = noteColors[colorIndex.coerceIn(0, noteColors.lastIndex)]
+    val cardFill = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+    val mutedInk = MaterialTheme.colorScheme.onSurfaceVariant
+    val allTasks by viewModel.allTasks.collectAsState()
+    val linkedTaskTitle = remember(note?.taskId, allTasks) {
+        note?.taskId?.let { id -> allTasks.firstOrNull { it.id == id }?.title }
+    }
+    var showAttachSheet by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier
             .fillMaxSize()
             .imePadding()
             .testTag("note_editor_screen"),
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        containerColor = paper,
         topBar = {
-            // Floating White Pill Top App Bar
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
+                IconButton(
+                    onClick = {
+                        persistChanges()
+                        onBack()
+                    },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(58.dp)
-                        .shadow(4.dp, RoundedCornerShape(30.dp)),
-                    shape = RoundedCornerShape(30.dp),
-                    color = MaterialTheme.colorScheme.surface
+                        .size(48.dp)
+                        .testTag("note_editor_back_button")
                 ) {
-                    Row(
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Left: Soft lavender circle back button
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer)
-                                .clickable {
-                                    persistChanges()
-                                    onBack()
-                                }
-                                .testTag("note_editor_back_button"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        // Center: "Note editor" title
-                        Text(
-                            text = "Note editor",
-                            style = TextStyle(
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                    Text(
+                        text = "Saved",
+                        style = TextStyle(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = mutedInk
                         )
-
-                        // Right: Attachments badge + Done button
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier.testTag("note_attachments_badge")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.AttachFile,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier
-                                            .size(14.dp)
-                                            .rotate(-45f)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "${attachments.size}",
-                                        style = TextStyle(
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                                        )
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                                    .clickable {
-                                        persistChanges()
-                                        onBack()
-                                    }
-                                    .testTag("note_editor_done_button"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = "Save and Close",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(cardFill)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .testTag("note_attachments_badge"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.AttachFile,
+                        contentDescription = "Attachments",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .size(14.dp)
+                            .rotate(-45f)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${attachments.size}",
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        persistChanges()
+                        onBack()
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("note_editor_done_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = "Save and Close",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         },
         bottomBar = {
-            // Floating Lavender Pill Bottom Toolbar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(64.dp)
-                        .shadow(8.dp, RoundedCornerShape(32.dp)),
-                    shape = RoundedCornerShape(32.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer
+                        .height(60.dp),
+                    shape = RoundedCornerShape(30.dp),
+                    color = MaterialTheme.colorScheme.inverseSurface
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 8.dp)
-                            .horizontalScroll(rememberScrollState()),
+                            .padding(horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        // 0. Primary Text / Type Button
-                        ToolbarIconButton(
-                            icon = Icons.Rounded.Edit,
-                            contentDescription = "Write note text",
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            testTag = "toolbar_text_button",
-                            onClick = {
-                                contentFocusRequester.requestFocus()
-                                keyboardController?.show()
-                            }
-                        )
-
-                        // 1. Checklist Button (Active Green)
-                        ToolbarIconButton(
-                            icon = Icons.Rounded.Checklist,
-                            contentDescription = "Add checklist item",
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            testTag = "toolbar_checklist_button",
-                            onClick = {
-                                showAddChecklistDialog = true
-                            }
-                        )
-
-                        // 2. Image Button (Soft Blue)
-                        ToolbarIconButton(
-                            icon = Icons.Rounded.Image,
-                            contentDescription = "Add image",
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            testTag = "toolbar_image_button",
-                            onClick = {
-                                imagePickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            }
-                        )
-
-                        // 3. Video Button (Soft Pink)
-                        ToolbarIconButton(
-                            icon = Icons.Rounded.Videocam,
-                            contentDescription = "Add video",
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                            testTag = "toolbar_video_button",
-                            onClick = {
-                                videoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                                )
-                            }
-                        )
-
-                        // 4. Link Button (Soft Purple)
-                        ToolbarIconButton(
-                            icon = Icons.Rounded.Link,
-                            contentDescription = "Add link",
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.primary,
-                            testTag = "toolbar_link_button",
-                            onClick = {
-                                showLinkDialog = true
-                            }
-                        )
-
-                        // 5. Audio Button (Soft Orange)
-                        ToolbarIconButton(
-                            icon = Icons.Rounded.GraphicEq,
-                            contentDescription = "Record audio memo",
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            testTag = "toolbar_audio_button",
-                            onClick = {
-                                val perm = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                                if (perm == PackageManager.PERMISSION_GRANTED) {
-                                    showVoiceRecordDialog = true
-                                } else {
-                                    recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
-                        )
-
-                        // 5b. File Button (Soft Teal)
-                        ToolbarIconButton(
-                            icon = Icons.Rounded.AttachFile,
-                            contentDescription = "Attach file",
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            testTag = "toolbar_file_button",
-                            onClick = {
-                                filePickerLauncher.launch("*/*")
-                            }
-                        )
-
-                        // Divider
+                        val onBar = MaterialTheme.colorScheme.inverseOnSurface
                         Box(
                             modifier = Modifier
-                                .width(1.dp)
-                                .height(26.dp)
-                                .background(MaterialTheme.colorScheme.outlineVariant)
-                        )
-
-                        // 6. Bold 'B'
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(if (isBold) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                .background(if (isBold) MaterialTheme.colorScheme.primary else Color.Transparent)
                                 .clickable {
                                     isBold = !isBold
                                     persistChanges()
@@ -545,19 +433,17 @@ fun NoteEditorScreen(
                             Text(
                                 text = "B",
                                 style = TextStyle(
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isBold) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (isBold) MaterialTheme.colorScheme.onPrimary else onBar
                                 )
                             )
                         }
-
-                        // 7. Italic 'I'
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(if (isItalic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                .background(if (isItalic) MaterialTheme.colorScheme.primary else Color.Transparent)
                                 .clickable {
                                     isItalic = !isItalic
                                     persistChanges()
@@ -568,11 +454,68 @@ fun NoteEditorScreen(
                             Text(
                                 text = "I",
                                 style = TextStyle(
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     fontStyle = FontStyle.Italic,
-                                    color = if (isItalic) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
+                                    color = if (isItalic) MaterialTheme.colorScheme.onPrimary else onBar
                                 )
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(24.dp)
+                                .background(onBar.copy(alpha = 0.25f))
+                        )
+                        IconButton(
+                            onClick = { showAddChecklistDialog = true },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("toolbar_checklist_button")
+                        ) {
+                            Icon(Icons.Rounded.Checklist, contentDescription = "Add checklist item", tint = onBar)
+                        }
+                        IconButton(
+                            onClick = {
+                                imagePickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("toolbar_image_button")
+                        ) {
+                            Icon(Icons.Rounded.Image, contentDescription = "Add image", tint = onBar)
+                        }
+                        IconButton(
+                            onClick = {
+                                val perm = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                                if (perm == PackageManager.PERMISSION_GRANTED) {
+                                    showVoiceRecordDialog = true
+                                } else {
+                                    recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("toolbar_audio_button")
+                        ) {
+                            Icon(Icons.Rounded.Mic, contentDescription = "Record voice memo", tint = onBar)
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                                .clickable { showAttachSheet = true }
+                                .testTag("toolbar_attach_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = "More attachments",
+                                tint = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                     }
@@ -584,345 +527,254 @@ fun NoteEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 24.dp),
             contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                // Large Off-White Card with 32dp Rounded Corners
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(2.dp, RoundedCornerShape(32.dp))
-                        .testTag("note_main_card"),
-                    shape = RoundedCornerShape(32.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 22.dp, vertical = 24.dp)
-                    ) {
-                        // Title TextField
-                        BasicTextField(
-                            value = title,
-                            onValueChange = {
-                                title = it
-                                persistChanges()
-                            },
-                            textStyle = TextStyle(
-                                fontSize = 26.sp,
-                                fontWeight = if (isBold) FontWeight.Black else FontWeight.Bold,
-                                fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            decorationBox = { innerTextField ->
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    if (title.isEmpty()) {
-                                        Text(
-                                            text = "Note Title",
-                                            style = TextStyle(
-                                                fontSize = 26.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
-                                            )
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(titleFocusRequester)
-                                .testTag("note_title_input")
-                        )
-
-                        val squiggleColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                        // Handwritten Underline Decoration
-                        Canvas(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .padding(top = 2.dp, end = 20.dp)
-                        ) {
-                            val path = Path().apply {
-                                moveTo(0f, size.height * 0.35f)
-                                quadraticBezierTo(
-                                    size.width * 0.48f, size.height * 0.85f,
-                                    size.width * 0.98f, size.height * 0.25f
-                                )
-                            }
-                            drawPath(
-                                path = path,
-                                color = squiggleColor,
-                                style = Stroke(
-                                    width = 2.4.dp.toPx(),
-                                    cap = StrokeCap.Round
-                                )
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Note Body / Text Content Area Header
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Edit,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                BasicTextField(
+                    value = title,
+                    onValueChange = {
+                        title = it
+                        persistChanges()
+                    },
+                    textStyle = TextStyle(
+                        fontSize = 28.sp,
+                        lineHeight = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { innerTextField ->
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            if (title.isEmpty()) {
                                 Text(
-                                    text = "NOTE TEXT",
+                                    text = "Note Title",
                                     style = TextStyle(
-                                        fontSize = 12.sp,
+                                        fontSize = 28.sp,
+                                        lineHeight = 34.sp,
                                         fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.3.sp,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = mutedInk.copy(alpha = 0.6f)
                                     )
                                 )
                             }
+                            innerTextField()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(titleFocusRequester)
+                        .testTag("note_title_input")
+                )
+            }
 
-                            val wordCount = remember(content) {
-                                if (content.isBlank()) 0 else content.trim().split(Regex("\\s+")).count { it.isNotBlank() }
-                            }
+            item {
+                val dateText = remember(note?.createdAt) {
+                    SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(Date(note?.createdAt ?: System.currentTimeMillis()))
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = dateText, style = TextStyle(fontSize = 13.sp, color = mutedInk))
+                    if (linkedTaskTitle != null) {
+                        Text(text = "·", style = TextStyle(fontSize = 13.sp, color = mutedInk))
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(cardFill)
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Link,
+                                contentDescription = null,
+                                tint = mutedInk,
+                                modifier = Modifier.size(14.dp)
+                            )
                             Text(
-                                text = "$wordCount words • ${content.length} chars",
+                                text = "Linked: $linkedTaskTitle",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 style = TextStyle(
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = mutedInk
                                 )
                             )
                         }
+                    }
+                }
+            }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Dedicated Note Text Writing Canvas
-                        Surface(
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                            ),
+            item {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    noteColors.forEachIndexed { index, color ->
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    contentFocusRequester.requestFocus()
-                                    keyboardController?.show()
+                                .size(44.dp)
+                                .clickable {
+                                    colorIndex = index
+                                    persistChanges()
                                 }
+                                .testTag("note_color_$index"),
+                            contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .defaultMinSize(minHeight = 220.dp)
-                                    .padding(16.dp)
-                            ) {
-                                BasicTextField(
-                                    value = content,
-                                    onValueChange = {
-                                        content = it
-                                        persistChanges()
-                                    },
-                                    textStyle = TextStyle(
-                                        fontSize = 16.sp,
-                                        lineHeight = 25.sp,
-                                        fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
-                                        fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                    decorationBox = { innerTextField ->
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .defaultMinSize(minHeight = 200.dp)
-                                        ) {
-                                            if (content.isEmpty()) {
-                                                Text(
-                                                    text = "Tap here to start writing your note...\n\nWrite your thoughts, daily plans, ideas, or meeting notes. You can write paragraphs, lists, or quick memos freely.",
-                                                    style = TextStyle(
-                                                        fontSize = 15.sp,
-                                                        lineHeight = 24.sp,
-                                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
-                                                    )
-                                                )
-                                            }
-                                            innerTextField()
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .defaultMinSize(minHeight = 200.dp)
-                                        .focusRequester(contentFocusRequester)
-                                        .testTag("note_content_input")
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // CHECKLIST Section Header
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "CHECKLIST (${checklistItems.size})",
-                                style = TextStyle(
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.3.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        BorderStroke(
+                                            if (index == colorIndex) 2.dp else 1.dp,
+                                            if (index == colorIndex) MaterialTheme.colorScheme.primary
+                                            else mutedInk.copy(alpha = 0.5f)
+                                        ),
+                                        CircleShape
+                                    )
                             )
-                            // Inline Add button
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { showAddChecklistDialog = true }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Add,
-                                    contentDescription = "Add item",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
+                        }
+                    }
+                }
+            }
+
+            item {
+                BasicTextField(
+                    value = content,
+                    onValueChange = {
+                        content = it
+                        persistChanges()
+                    },
+                    textStyle = TextStyle(
+                        fontSize = 16.sp,
+                        lineHeight = 26.sp,
+                        fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
+                        fontStyle = if (isItalic) FontStyle.Italic else FontStyle.Normal,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { innerTextField ->
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            if (content.isEmpty()) {
                                 Text(
-                                    text = "Add Item",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
+                                    text = "Start writing…",
+                                    style = TextStyle(
+                                        fontSize = 16.sp,
+                                        lineHeight = 26.sp,
+                                        color = mutedInk.copy(alpha = 0.7f)
+                                    )
                                 )
                             }
+                            innerTextField()
                         }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 140.dp)
+                        .focusRequester(contentFocusRequester)
+                        .testTag("note_content_input")
+                )
+            }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Checklist Items or Compact Empty prompt
-                        if (checklistItems.isEmpty()) {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showAddChecklistDialog = true }
-                                    .padding(vertical = 2.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Checklist,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = "Add checklist items (optional)",
-                                        style = TextStyle(
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    )
-                                }
-                            }
-                        } else {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                checklistItems.forEachIndexed { index, item ->
-                                    ChecklistItemRow(
-                                        item = item,
-                                        onToggle = {
-                                            val updatedList = checklistItems.toMutableList()
-                                            updatedList[index] = item.copy(isDone = !item.isDone)
-                                            checklistItems = updatedList
-                                            persistChanges()
-                                        },
-                                        onDelete = {
-                                            checklistItems = checklistItems.filterNot { it.id == item.id }
-                                            persistChanges()
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // ATTACHMENTS Section Header
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(cardFill)
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "CHECKLIST",
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.8.sp,
+                                color = mutedInk
+                            )
+                        )
+                        if (checklistItems.isNotEmpty()) {
                             Text(
-                                text = "ATTACHMENTS (${attachments.size})",
+                                text = "${checklistItems.count { it.isDone }} of ${checklistItems.size}",
                                 style = TextStyle(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.3.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    letterSpacing = 0.8.sp,
+                                    color = mutedInk
                                 )
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Attachment Cards or Compact Empty prompt
-                        if (attachments.isEmpty()) {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.AttachFile,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = "Add photos, links, or audio from toolbar below (optional)",
-                                        style = TextStyle(
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    )
-                                }
+                    }
+                    checklistItems.forEachIndexed { index, item ->
+                        ChecklistItemRow(
+                            item = item,
+                            onToggle = {
+                                val updatedList = checklistItems.toMutableList()
+                                updatedList[index] = item.copy(isDone = !item.isDone)
+                                checklistItems = updatedList
+                                persistChanges()
+                            },
+                            onDelete = {
+                                checklistItems = checklistItems.filterNot { it.id == item.id }
+                                persistChanges()
                             }
-                        } else {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                            attachments.forEach { attachment ->
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showAddChecklistDialog = true }
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "Add item",
+                            style = TextStyle(
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
+            }
+
+            if (attachments.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "ATTACHMENTS",
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp,
+                            color = mutedInk
+                        ),
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        attachments.forEach { attachment ->
                                 when (attachment.type) {
                                     AttachmentType.IMAGE -> {
                                         ImageAttachmentCard(
@@ -998,6 +850,97 @@ fun NoteEditorScreen(
                                         // Ignore or generic fallback
                                     }
                                 }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Bottom sheet: attach options
+    if (showAttachSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAttachSheet = false },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Add to note",
+                    style = TextStyle(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                )
+                val options = listOf(
+                    Triple("Checklist", Icons.Rounded.Checklist, "attach_checklist"),
+                    Triple("Image", Icons.Rounded.Image, "attach_image"),
+                    Triple("Video", Icons.Rounded.Videocam, "attach_video"),
+                    Triple("Link", Icons.Rounded.Link, "attach_link"),
+                    Triple("Audio", Icons.Rounded.Mic, "attach_audio"),
+                    Triple("File", Icons.Rounded.AttachFile, "attach_file")
+                )
+                options.chunked(3).forEach { rowOptions ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        rowOptions.forEach { (label, icon, tag) ->
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .defaultMinSize(minHeight = 96.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(paper)
+                                    .clickable {
+                                        showAttachSheet = false
+                                        when (tag) {
+                                            "attach_checklist" -> showAddChecklistDialog = true
+                                            "attach_image" -> imagePickerLauncher.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                            )
+                                            "attach_video" -> videoPickerLauncher.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                            )
+                                            "attach_link" -> showLinkDialog = true
+                                            "attach_audio" -> {
+                                                val perm = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                                                if (perm == PackageManager.PERMISSION_GRANTED) {
+                                                    showVoiceRecordDialog = true
+                                                } else {
+                                                    recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                                }
+                                            }
+                                            else -> filePickerLauncher.launch("*/*")
+                                        }
+                                    }
+                                    .testTag(tag),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = label,
+                                    style = TextStyle(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
                             }
                         }
                     }
@@ -1005,7 +948,6 @@ fun NoteEditorScreen(
             }
         }
     }
-}
 
     // Dialog: Add Link
     if (showLinkDialog) {
@@ -1190,8 +1132,10 @@ private fun ChecklistItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onToggle() },
+            .defaultMinSize(minHeight = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onToggle() }
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Squircle 24dp Checkbox
