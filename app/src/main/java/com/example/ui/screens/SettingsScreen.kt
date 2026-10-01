@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.ui.viewmodel.UpdateUiState
 import com.example.util.rememberAuthPrompt
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -803,6 +804,91 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // Section: App updates (checks GitHub Releases; downloads happen in the browser)
+        item {
+            val updateState by viewModel.updateState.collectAsState()
+            val autoCheck by viewModel.autoUpdateCheck.collectAsState()
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "App Updates",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Version ${com.example.BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    when (val u = updateState) {
+                        is UpdateUiState.Checking -> Text("Checking for updates...", style = MaterialTheme.typography.bodyMedium)
+                        is UpdateUiState.UpToDate -> Text("You're on the latest version.", style = MaterialTheme.typography.bodyMedium)
+                        is UpdateUiState.Failed -> Text(
+                            u.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        is UpdateUiState.Available -> {
+                            Text(
+                                text = "Version ${u.info.versionName} is available",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (u.info.notes.isNotBlank()) {
+                                Text(
+                                    text = u.info.notes.trim().take(400),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Button(
+                                onClick = { uriHandler.openUri(u.info.url) },
+                                modifier = Modifier.testTag("download_update_button")
+                            ) { Text("View & download") }
+                        }
+                        is UpdateUiState.Idle -> {}
+                    }
+                    OutlinedButton(
+                        onClick = { viewModel.checkForUpdates() },
+                        enabled = updateState !is UpdateUiState.Checking,
+                        modifier = Modifier.testTag("check_updates_button")
+                    ) { Text("Check for updates") }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Check automatically once a day",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Off by default. Only asks GitHub for the latest version; sends none of your data.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = autoCheck, onCheckedChange = { viewModel.setAutoUpdateCheck(it) })
                     }
                 }
             }

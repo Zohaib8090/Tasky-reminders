@@ -17,8 +17,9 @@ android {
     applicationId = "com.aistudio.tasknest.zvxql"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    // CI passes the release version (from the git tag); local builds default to 1 / "1.0"
+    versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+    versionName = (project.findProperty("appVersionName") as String?) ?: "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

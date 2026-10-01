@@ -64,6 +64,7 @@ class MainActivity : FragmentActivity() {
 
         // Enqueue periodic maintenance
         TaskSyncWorker.enqueuePeriodicSync(this)
+        viewModel.maybeAutoCheckForUpdates()
 
         // Handle intent if opened from reminder notification
         val navigateTaskId = intent.getLongExtra("EXTRA_NAVIGATE_TASK_ID", -1L)

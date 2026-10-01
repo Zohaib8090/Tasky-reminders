@@ -57,9 +57,14 @@ A local-first Android app for **tasks with reminders** and **notes**, built with
 - If the backup contains locked items, you authenticate once and choose an **export password**. Locked items and their media are encrypted in the file with it
 - Restoring such a backup asks for that password first; a wrong password changes nothing
 
+### Updates
+- **Check for updates** in Settings looks up the newest GitHub release and shows its version and notes, with a button to open the download page
+- Optional once-a-day automatic check (off by default). It only asks GitHub for the latest version and sends none of your data
+- Updates are installed by you from the downloaded APK; the app never installs anything silently
+
 ### Other
 - Starts empty: no sample tasks or notes
-- Works fully offline
+- Works offline; the only network use is the optional update check
 
 ## Build
 
@@ -78,6 +83,23 @@ Requirements: JDK 17 or newer and the Android SDK (compileSdk 36). minSdk is 24.
 - On a tag such as `v1.0.0`, it also publishes the APK to a GitHub Release.
 - Run it manually from the **Actions** tab and choose `debug`, `release` or `both`.
 - A signed **release** APK needs these repository secrets: `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_PASSWORD`.
+
+## Releasing a new version
+
+1. **One-time: create a fixed signing key.** Android only installs an update over an existing app when both APKs are signed with the same key, so keep this file safe and never commit it.
+   ```bash
+   keytool -genkeypair -v -keystore my-upload-key.jks -alias upload \
+     -keyalg RSA -keysize 2048 -validity 10000
+   base64 -w0 my-upload-key.jks     # copy the output
+   ```
+2. **One-time: add three repository secrets** (GitHub, Settings, Secrets and variables, Actions): `KEYSTORE_BASE64` (the output above), `STORE_PASSWORD` and `KEY_PASSWORD` (the passwords you chose).
+3. **Each release:** push a tag such as `v1.1.0`:
+   ```bash
+   git tag v1.1.0 && git push origin v1.1.0
+   ```
+   The workflow sets the app version from the tag (`1.1.0`, version code `10100`), builds a signed release APK and publishes it to a GitHub Release. Users then see it under Settings, Check for updates.
+
+Builds without a tag use a development version and the debug key, and can't update a release install.
 
 ## Project layout
 

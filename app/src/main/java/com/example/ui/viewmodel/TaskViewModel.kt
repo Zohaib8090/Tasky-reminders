@@ -49,6 +49,14 @@ sealed class BackupUiState {
     ) : BackupUiState()
 }
 
+sealed class UpdateUiState {
+    object Idle : UpdateUiState()
+    object Checking : UpdateUiState()
+    object UpToDate : UpdateUiState()
+    data class Available(val info: com.example.util.UpdateInfo) : UpdateUiState()
+    data class Failed(val message: String) : UpdateUiState()
+}
+
 class TaskViewModel(
     private val repository: TaskRepository,
     private val appContext: Context? = null
@@ -155,6 +163,38 @@ class TaskViewModel(
 
     private val _lastBackupTime = MutableStateFlow(sharedPrefs?.getLong("last_backup_time", 0L) ?: 0L)
     val lastBackupTime: StateFlow<Long> = _lastBackupTime.asStateFlow()
+
+    // App update check (manual, plus an optional once-a-day check)
+    private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
+    val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
+
+    private val _autoUpdateCheck = MutableStateFlow(sharedPrefs?.getBoolean("auto_update_check", false) ?: false)
+    val autoUpdateCheck: StateFlow<Boolean> = _autoUpdateCheck.asStateFlow()
+
+    fun setAutoUpdateCheck(enabled: Boolean) {
+        _autoUpdateCheck.value = enabled
+        sharedPrefs?.edit()?.putBoolean("auto_update_check", enabled)?.apply()
+    }
+
+    fun checkForUpdates() {
+        if (_updateState.value is UpdateUiState.Checking) return
+        _updateState.value = UpdateUiState.Checking
+        viewModelScope.launch {
+            _updateState.value = when (val r = com.example.util.UpdateChecker.check(com.example.BuildConfig.VERSION_NAME)) {
+                is com.example.util.UpdateCheckResult.Available -> UpdateUiState.Available(r.info)
+                is com.example.util.UpdateCheckResult.UpToDate -> UpdateUiState.UpToDate
+                is com.example.util.UpdateCheckResult.Failed -> UpdateUiState.Failed(r.message)
+            }
+            sharedPrefs?.edit()?.putLong("last_update_check", System.currentTimeMillis())?.apply()
+        }
+    }
+
+    /** Runs the daily check when the user has opted in. */
+    fun maybeAutoCheckForUpdates() {
+        if (!_autoUpdateCheck.value) return
+        val last = sharedPrefs?.getLong("last_update_check", 0L) ?: 0L
+        if (System.currentTimeMillis() - last > 24L * 60 * 60 * 1000) checkForUpdates()
+    }
 
     fun clearBackupUiState() {
         _backupUiState.value = BackupUiState.Idle

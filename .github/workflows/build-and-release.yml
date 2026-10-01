@@ -84,17 +84,42 @@ jobs:
             echo "HAS_RELEASE_KEY=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Work out version and build type
+        id: plan
+        run: |
+          HAS_KEY="${{ steps.setup-release-keystore.outputs.HAS_RELEASE_KEY }}"
+          INPUT="${{ github.event.inputs.build_type }}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION_NAME="${GITHUB_REF_NAME#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${VERSION_NAME%%-*}"
+            VERSION_CODE=$(( ${MAJOR:-0} * 10000 + ${MINOR:-0} * 100 + ${PATCH:-0} ))
+            # Tagged releases are signed with the fixed release key when it is configured
+            if [ "$HAS_KEY" = "true" ]; then BUILD="release"; else BUILD="debug"; fi
+          else
+            VERSION_NAME="1.0-dev.${{ github.run_number }}"
+            VERSION_CODE="${{ github.run_number }}"
+            BUILD="${INPUT:-debug}"
+            if [ "$BUILD" != "debug" ] && [ "$HAS_KEY" != "true" ]; then
+              echo "No release keystore configured; building debug only."
+              BUILD="debug"
+            fi
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Building $BUILD, version $VERSION_NAME (code $VERSION_CODE)"
+
       - name: Build Debug APK
-        if: ${{ github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '' }}
-        run: ./gradlew assembleDebug --stacktrace
+        if: ${{ steps.plan.outputs.build == 'debug' || steps.plan.outputs.build == 'both' }}
+        run: ./gradlew assembleDebug -PappVersionName=${{ steps.plan.outputs.version_name }} -PappVersionCode=${{ steps.plan.outputs.version_code }} --stacktrace
 
       - name: Build Release APK
-        if: ${{ (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both') && steps.setup-release-keystore.outputs.HAS_RELEASE_KEY == 'true' }}
+        if: ${{ steps.plan.outputs.build == 'release' || steps.plan.outputs.build == 'both' }}
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease -PappVersionName=${{ steps.plan.outputs.version_name }} -PappVersionCode=${{ steps.plan.outputs.version_code }} --stacktrace
 
       - name: Upload APKs as Artifacts
         uses: actions/upload-artifact@v4
