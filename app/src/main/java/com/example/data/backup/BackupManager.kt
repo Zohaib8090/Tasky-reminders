@@ -94,7 +94,7 @@ object BackupManager {
             if (lockedCount > 0 && (lockedPassword == null || lockedPassword.isEmpty())) {
                 return@withContext BackupResult.Error("A password is required to export locked items.")
             }
-            // Locked items are sealed with a password-derived key; media of locked items is left out
+            // Locked items (and their media) are sealed with a password-derived key
             val sealer = if (lockedCount > 0) BackupSealer.create(lockedPassword!!) else null
 
             var mediaCount = 0
@@ -116,11 +116,11 @@ object BackupManager {
                 // Process task attachments
                 val updatedTasks = tasks.map { task ->
                     val rawAttachments = AttachmentItem.decodeList(task.attachmentsJson)
-                    if (task.isLocked || rawAttachments.isEmpty()) {
+                    if (rawAttachments.isEmpty()) {
                         task
                     } else {
                         val exportedAttachments = rawAttachments.map { item ->
-                            val zipPath = copyMediaToZip(context, item, zipOut)
+                            val zipPath = copyMediaToZip(context, item, zipOut, if (task.isLocked) sealer else null)
                             if (zipPath != null) {
                                 mediaCount++
                                 item.copy(uriOrUrl = "zip://$zipPath")
@@ -135,11 +135,11 @@ object BackupManager {
                 // Process note attachments
                 val updatedNotes = notes.map { note ->
                     val rawAttachments = AttachmentItem.decodeList(note.attachmentsJson)
-                    if (note.isLocked || rawAttachments.isEmpty()) {
+                    if (rawAttachments.isEmpty()) {
                         note
                     } else {
                         val exportedAttachments = rawAttachments.map { item ->
-                            val zipPath = copyMediaToZip(context, item, zipOut)
+                            val zipPath = copyMediaToZip(context, item, zipOut, if (note.isLocked) sealer else null)
                             if (zipPath != null) {
                                 mediaCount++
                                 item.copy(uriOrUrl = "zip://$zipPath")
@@ -226,13 +226,25 @@ object BackupManager {
             var dataJsonString: String? = null
             var mediaCount = 0
             val mediaBaseDir = File(context.filesDir, "attachments").apply { mkdirs() }
+            val lockedTmpDir = File(context.cacheDir, "locked_restore").apply {
+                deleteRecursively()
+                mkdirs()
+            }
+            try {
 
             ZipInputStream(BufferedInputStream(inputStream)).use { zipIn ->
                 var entry = zipIn.nextEntry
                 while (entry != null) {
                     val entryName = entry.name
 
-                    if (entryName == "data.json") {
+                    if (!entry.isDirectory && entryName.startsWith("locked/")) {
+                        // Encrypted media of locked items: stage it until the password is verified
+                        val staged = File(lockedTmpDir, entryName)
+                        if (staged.canonicalPath.startsWith(lockedTmpDir.canonicalPath + File.separator)) {
+                            staged.parentFile?.mkdirs()
+                            FileOutputStream(staged).use { out -> zipIn.copyTo(out) }
+                        }
+                    } else if (entryName == "data.json") {
                         dataJsonString = zipIn.bufferedReader(Charsets.UTF_8).readText()
                     } else if (!entry.isDirectory && (
                             entryName.startsWith("images/") ||
@@ -274,6 +286,28 @@ object BackupManager {
                     lockedMeta.getInt("iterations"),
                     lockedMeta.optString("kdf", "PBKDF2WithHmacSHA256")
                 )
+            }
+            // Decrypt staged media of locked items into the attachments folder
+            if (opener != null) {
+                val stagedRoot = File(lockedTmpDir, "locked")
+                val stagedFiles = stagedRoot.walkTopDown().filter { it.isFile && it.name.endsWith(".enc") }.toList()
+                for (staged in stagedFiles) {
+                    val rel = staged.relativeTo(stagedRoot).path.removeSuffix(".enc")
+                    val target = File(mediaBaseDir, rel)
+                    if (!target.canonicalPath.startsWith(mediaBaseDir.canonicalPath + File.separator)) continue
+                    target.parentFile?.mkdirs()
+                    try {
+                        BufferedInputStream(FileInputStream(staged)).use { input ->
+                            BufferedOutputStream(FileOutputStream(target)).use { out ->
+                                opener.decryptStream(input, out)
+                            }
+                        }
+                        mediaCount++
+                    } catch (e: Exception) {
+                        target.delete()
+                        return@withContext RestoreResult.WrongPassword
+                    }
+                }
             }
             fun unseal(obj: JSONObject): Boolean {
                 val blob = obj.optString("sealed", "")
@@ -364,6 +398,9 @@ object BackupManager {
                 mediaCount = mediaCount,
                 settings = restoredSettings
             )
+            } finally {
+                lockedTmpDir.deleteRecursively()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error restoring backup", e)
             RestoreResult.Error("Restore failed: ${e.localizedMessage ?: e.message}", e)
@@ -373,7 +410,8 @@ object BackupManager {
     private fun copyMediaToZip(
         context: Context,
         item: AttachmentItem,
-        zipOut: ZipOutputStream
+        zipOut: ZipOutputStream,
+        sealer: BackupSealer? = null
     ): String? {
         val uriStr = item.uriOrUrl
         if (uriStr.isBlank() || uriStr.startsWith("http://") || uriStr.startsWith("https://") || uriStr.startsWith("sample://")) {
@@ -404,8 +442,14 @@ object BackupManager {
 
             if (mediaIn != null) {
                 mediaIn.use { input ->
-                    zipOut.putNextEntry(ZipEntry(entryPath))
-                    input.copyTo(zipOut)
+                    if (sealer != null) {
+                        // Stored encrypted under locked/; the logical path is kept for relinking
+                        zipOut.putNextEntry(ZipEntry("locked/$entryPath.enc"))
+                        sealer.encryptStream(input, zipOut)
+                    } else {
+                        zipOut.putNextEntry(ZipEntry(entryPath))
+                        input.copyTo(zipOut)
+                    }
                     zipOut.closeEntry()
                 }
                 entryPath

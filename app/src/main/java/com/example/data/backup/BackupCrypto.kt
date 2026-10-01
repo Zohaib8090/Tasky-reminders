@@ -1,6 +1,9 @@
 package com.example.data.backup
 
 import android.util.Base64
+import java.io.InputStream
+import java.io.OutputStream
+import java.nio.ByteBuffer
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
@@ -36,7 +39,69 @@ class BackupSealer private constructor(
         null
     }
 
+    private fun chunkCipher(mode: Int, base: ByteArray, counter: Int, last: Boolean): Cipher {
+        val iv = ByteBuffer.allocate(12).put(base).putInt(counter).array()
+        return Cipher.getInstance("AES/GCM/NoPadding").apply {
+            init(mode, key, GCMParameterSpec(128, iv))
+            updateAAD(byteArrayOf(if (last) 1 else 0))
+        }
+    }
+
+    private fun readFully(input: InputStream, buf: ByteArray): Int {
+        var total = 0
+        while (total < buf.size) {
+            val n = input.read(buf, total, buf.size - total)
+            if (n < 0) break
+            total += n
+        }
+        return total
+    }
+
+    private fun readInt(input: InputStream): Int {
+        val b = ByteArray(4)
+        return if (readFully(input, b) < 4) -1 else ByteBuffer.wrap(b).int
+    }
+
+    /** Encrypts a (possibly large) file in independently authenticated 64 KB chunks. Does not close [out]. */
+    fun encryptStream(input: InputStream, out: OutputStream) {
+        val base = ByteArray(8).also { SecureRandom().nextBytes(it) }
+        out.write(base)
+        var buf = ByteArray(CHUNK)
+        var next = ByteArray(CHUNK)
+        var len = readFully(input, buf)
+        var counter = 0
+        while (true) {
+            val nextLen = if (len == CHUNK) readFully(input, next) else 0
+            val last = nextLen == 0
+            val ct = chunkCipher(Cipher.ENCRYPT_MODE, base, counter, last).doFinal(buf, 0, len)
+            out.write(ByteBuffer.allocate(4).putInt(ct.size).array())
+            out.write(ct)
+            if (last) break
+            val tmp = buf; buf = next; next = tmp
+            len = nextLen
+            counter++
+        }
+    }
+
+    /** Reverse of [encryptStream]; throws if the password is wrong or the data was altered. */
+    fun decryptStream(input: InputStream, out: OutputStream) {
+        val base = ByteArray(8)
+        if (readFully(input, base) < 8) throw IllegalArgumentException("Truncated data")
+        var frameLen = readInt(input)
+        var counter = 0
+        while (frameLen >= 0) {
+            val ct = ByteArray(frameLen)
+            if (readFully(input, ct) < frameLen) throw IllegalArgumentException("Truncated data")
+            val nextLen = readInt(input)
+            val last = nextLen < 0
+            out.write(chunkCipher(Cipher.DECRYPT_MODE, base, counter, last).doFinal(ct))
+            frameLen = nextLen
+            counter++
+        }
+    }
+
     companion object {
+        private const val CHUNK = 64 * 1024
         private const val ITERATIONS = 200_000
         private const val KDF_SHA256 = "PBKDF2WithHmacSHA256"
         private const val KDF_SHA1 = "PBKDF2WithHmacSHA1"

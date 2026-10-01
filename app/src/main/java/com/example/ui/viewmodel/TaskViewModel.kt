@@ -181,7 +181,7 @@ class TaskViewModel(
                     sharedPrefs?.edit()?.putLong("last_backup_time", now)?.apply()
                     _backupUiState.value = BackupUiState.Success(
                         "Backup saved successfully!\nExported ${result.taskCount} tasks, ${result.noteCount} notes, and ${result.mediaCount} media files." +
-                            if (result.lockedCount > 0) "\n${result.lockedCount} locked items are encrypted with your export password (their media files are not included)." else ""
+                            if (result.lockedCount > 0) "\n${result.lockedCount} locked items are encrypted with your export password." else ""
                     )
                     _userMessage.value = "Backup created: ${result.fileName}"
                 }
