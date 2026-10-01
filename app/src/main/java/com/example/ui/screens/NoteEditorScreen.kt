@@ -226,6 +226,7 @@ fun NoteEditorScreen(
     var showLinkDialog by remember { mutableStateOf(false) }
     var showVoiceRecordDialog by remember { mutableStateOf(false) }
     var showAddChecklistDialog by remember { mutableStateOf(false) }
+    var showRemoveChecklistDialog by remember { mutableStateOf(false) }
     var previewMediaAttachment by remember { mutableStateOf<AttachmentItem?>(null) }
     var playingAudioId by remember { mutableStateOf<String?>(null) }
 
@@ -698,7 +699,7 @@ fun NoteEditorScreen(
                                 color = mutedInk
                             )
                         )
-                        run {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "${checklistItems.count { it.isDone }} of ${checklistItems.size}",
                                 style = TextStyle(
@@ -708,6 +709,19 @@ fun NoteEditorScreen(
                                     color = mutedInk
                                 )
                             )
+                            IconButton(
+                                onClick = { showRemoveChecklistDialog = true },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .testTag("remove_checklist_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Delete,
+                                    contentDescription = "Remove checklist",
+                                    tint = mutedInk,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                     checklistItems.forEachIndexed { index, item ->
@@ -1041,6 +1055,30 @@ fun NoteEditorScreen(
         )
     }
 
+    // Dialog: Remove the whole checklist
+    if (showRemoveChecklistDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveChecklistDialog = false },
+            title = { Text("Remove checklist?") },
+            text = { Text("All ${checklistItems.size} items will be removed from this note.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        checklistItems = emptyList()
+                        persistChanges()
+                        showRemoveChecklistDialog = false
+                    },
+                    modifier = Modifier.testTag("confirm_remove_checklist")
+                ) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveChecklistDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     // Dialog: Add Checklist Item
     if (showAddChecklistDialog) {
         var newItemText by remember { mutableStateOf("") }
@@ -1176,6 +1214,20 @@ private fun ChecklistItemRow(
             ),
             modifier = Modifier.weight(1f)
         )
+
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier
+                .size(40.dp)
+                .testTag("remove_checklist_item")
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = "Remove item",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 
