@@ -18,11 +18,14 @@ Gradle reads `-PappVersionName` and `-PappVersionCode`. CI sets them: for a tag 
 ## CI (`.github/workflows/build-and-release.yml`)
 | Trigger | Result |
 |---|---|
-| Push or PR to `main` | Debug APK as the `TaskNest-APKs` artifact (30 days) |
-| Manual run, choose debug / release / both | Chosen APKs as an artifact; release needs the secrets |
-| Push of a tag `v*` | Signed release APK as an artifact and attached to a GitHub Release |
+| Push to `main` | Signed release APK, published to the **Latest build** pre-release (tag `latest-build`, file `TaskNest-latest.apk`, replaced each time) and kept as the `TaskNest-APKs` artifact for 30 days |
+| Push of a tag `v*` | Signed release APK as `TaskNest-<version>.apk`, attached to a normal GitHub Release with generated notes |
+| Pull request | Build only, nothing published |
+| Manual run (Actions tab) | The chosen build type; release is the default |
 
-Without the release secrets, a tag build falls back to a debug APK, which cannot update a release install.
+Without the signing secrets, builds fall back to a debug APK that is only uploaded as an artifact. A newer push cancels a build still running for the same branch.
+
+The Latest build is marked as a pre-release, so the in-app update check (which reads the newest non-pre-release) only offers versioned releases.
 
 ## One-time signing setup
 ```bash
@@ -35,7 +38,7 @@ Add repository secrets `KEYSTORE_BASE64` (the base64 output), `STORE_PASSWORD` a
 ## Publishing a version
 1. Make sure `main` builds green.
 2. Create a release on GitHub with a new tag such as `v1.1.0` on `main` (or push the tag from a computer).
-3. The workflow builds the signed APK and attaches it to the release.
+3. The workflow builds the signed APK and attaches it to that release.
 4. Users see it under Settings, App Updates, Check for updates.
 
 ## Changing the package name

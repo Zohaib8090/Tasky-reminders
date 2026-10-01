@@ -79,12 +79,15 @@ Requirements: JDK 17 or newer and the Android SDK (compileSdk 36). minSdk is 24.
 
 ## APK builds (GitHub Actions)
 
-`.github/workflows/build-and-release.yml` builds the app automatically:
+`.github/workflows/build-and-release.yml` builds and publishes the app automatically:
 
-- On every push or pull request to `main`, it builds a **debug APK** and uploads it as the `TaskNest-APKs` artifact (kept for 30 days). Find it on the workflow run's page under **Artifacts**.
-- On a tag such as `v1.0.0`, it also publishes the APK to a GitHub Release.
-- Run it manually from the **Actions** tab and choose `debug`, `release` or `both`.
-- A signed **release** APK needs these repository secrets: `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_PASSWORD`.
+- **Every push to `main`** builds a signed release APK and publishes it to the **[Latest build](../../releases/tag/latest-build)** pre-release as `TaskNest-latest.apk`. It is replaced on each push. The APK is also kept as the `TaskNest-APKs` artifact on the workflow run for 30 days.
+- **A tag such as `v1.0.0`** publishes a versioned release with `TaskNest-1.0.0.apk` and generated release notes.
+- **Pull requests** build but publish nothing.
+- You can also start it manually from the **Actions** tab.
+- Signed builds need the repository secrets `KEYSTORE_BASE64` and `STORE_PASSWORD`. Without them the workflow builds a debug APK as an artifact only.
+
+The in-app update check only looks at versioned releases, not the Latest build pre-release.
 
 ## Releasing a new version
 
