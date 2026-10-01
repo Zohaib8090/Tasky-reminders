@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.util.rememberAuthPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -67,6 +68,7 @@ fun CalendarScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val requestAuth = rememberAuthPrompt()
     val haptic = LocalHapticFeedback.current
     val isDark = isSystemInDarkTheme()
 
@@ -398,7 +400,13 @@ fun CalendarScreen(
                     notePreview = preview,
                     onCardClick = { viewModel.openTaskDetail(task) },
                     onToggleCompletion = { viewModel.toggleTaskCompletion(task, context) },
-                    onDelete = { viewModel.deleteTask(task, context) }
+                    onDelete = {
+                        if (task.isLocked) {
+                            requestAuth("Confirm delete", { viewModel.deleteTask(task, context) }, {})
+                        } else {
+                            viewModel.deleteTask(task, context)
+                        }
+                    }
                 )
             }
         }

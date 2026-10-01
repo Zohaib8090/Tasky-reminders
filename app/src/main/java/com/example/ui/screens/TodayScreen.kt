@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.util.rememberAuthPrompt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -73,6 +74,7 @@ fun TodayScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val requestAuth = rememberAuthPrompt()
     val haptic = LocalHapticFeedback.current
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isSearching = searchQuery.isNotBlank()
@@ -443,7 +445,13 @@ fun TodayScreen(
                     notePreview = preview,
                     onCardClick = { viewModel.openTaskDetail(task) },
                     onToggleCompletion = { viewModel.toggleTaskCompletion(task, context) },
-                    onDelete = { viewModel.deleteTask(task, context) }
+                    onDelete = {
+                        if (task.isLocked) {
+                            requestAuth("Confirm delete", { viewModel.deleteTask(task, context) }, {})
+                        } else {
+                            viewModel.deleteTask(task, context)
+                        }
+                    }
                 )
             }
         }

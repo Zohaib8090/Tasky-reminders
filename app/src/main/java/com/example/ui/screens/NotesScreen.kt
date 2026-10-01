@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.util.rememberAuthPrompt
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -85,6 +86,7 @@ fun NotesScreen(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val requestAuth = rememberAuthPrompt()
     val isDark = isSystemInDarkTheme()
     var searchQuery by remember { mutableStateOf("") }
 
@@ -503,7 +505,11 @@ fun NotesScreen(
                             IconButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    viewModel.deleteNote(note)
+                                    if (note.isLocked) {
+                                        requestAuth("Confirm delete", { viewModel.deleteNote(note) }, {})
+                                    } else {
+                                        viewModel.deleteNote(note)
+                                    }
                                 },
                                 modifier = Modifier
                                     .size(24.dp)

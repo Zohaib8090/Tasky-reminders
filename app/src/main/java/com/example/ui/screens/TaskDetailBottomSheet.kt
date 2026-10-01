@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.util.rememberAuthPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -99,6 +100,7 @@ fun TaskDetailBottomSheet(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val requestAuth = rememberAuthPrompt()
     val haptic = LocalHapticFeedback.current
     val isDark = isSystemInDarkTheme()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -120,7 +122,11 @@ fun TaskDetailBottomSheet(
                 TextButton(
                     onClick = {
                         showDeleteConfirmation = false
-                        viewModel.deleteTask(task, context)
+                        if (task.isLocked) {
+                            requestAuth("Confirm delete", { viewModel.deleteTask(task, context) }, {})
+                        } else {
+                            viewModel.deleteTask(task, context)
+                        }
                     }
                 ) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
