@@ -42,6 +42,11 @@ sealed class BackupUiState {
     data class InProgress(val message: String) : BackupUiState()
     data class Success(val message: String) : BackupUiState()
     data class Error(val message: String) : BackupUiState()
+    data class NeedsPassword(
+        val sourceUri: Uri,
+        val replaceExisting: Boolean,
+        val wrongPassword: Boolean
+    ) : BackupUiState()
 }
 
 class TaskViewModel(
@@ -155,7 +160,7 @@ class TaskViewModel(
         _backupUiState.value = BackupUiState.Idle
     }
 
-    fun createBackup(destinationUri: Uri, context: Context) {
+    fun createBackup(destinationUri: Uri, context: Context, lockedPassword: String? = null) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.InProgress("Creating local backup zip...")
             val currentSettings = BackupSettings(
@@ -166,7 +171,8 @@ class TaskViewModel(
                 context = context,
                 destinationUri = destinationUri,
                 repository = repository,
-                settings = currentSettings
+                settings = currentSettings,
+                lockedPassword = lockedPassword?.toCharArray()
             )
             when (result) {
                 is BackupResult.Success -> {
@@ -174,7 +180,8 @@ class TaskViewModel(
                     _lastBackupTime.value = now
                     sharedPrefs?.edit()?.putLong("last_backup_time", now)?.apply()
                     _backupUiState.value = BackupUiState.Success(
-                        "Backup saved successfully!\nExported ${result.taskCount} tasks, ${result.noteCount} notes, and ${result.mediaCount} media files."
+                        "Backup saved successfully!\nExported ${result.taskCount} tasks, ${result.noteCount} notes, and ${result.mediaCount} media files." +
+                            if (result.lockedCount > 0) "\n${result.lockedCount} locked items are encrypted with your export password (their media files are not included)." else ""
                     )
                     _userMessage.value = "Backup created: ${result.fileName}"
                 }
@@ -185,14 +192,15 @@ class TaskViewModel(
         }
     }
 
-    fun restoreBackup(sourceUri: Uri, replaceExisting: Boolean, context: Context) {
+    fun restoreBackup(sourceUri: Uri, replaceExisting: Boolean, context: Context, lockedPassword: String? = null) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.InProgress("Restoring database & extracting media...")
             val result = BackupManager.restoreBackup(
                 context = context,
                 sourceUri = sourceUri,
                 repository = repository,
-                replaceExisting = replaceExisting
+                replaceExisting = replaceExisting,
+                lockedPassword = lockedPassword?.toCharArray()
             )
             when (result) {
                 is RestoreResult.Success -> {
@@ -212,6 +220,12 @@ class TaskViewModel(
                 }
                 is RestoreResult.Error -> {
                     _backupUiState.value = BackupUiState.Error(result.message)
+                }
+                is RestoreResult.NeedsPassword -> {
+                    _backupUiState.value = BackupUiState.NeedsPassword(sourceUri, replaceExisting, wrongPassword = false)
+                }
+                is RestoreResult.WrongPassword -> {
+                    _backupUiState.value = BackupUiState.NeedsPassword(sourceUri, replaceExisting, wrongPassword = true)
                 }
             }
         }

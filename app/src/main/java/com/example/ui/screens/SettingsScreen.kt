@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import com.example.util.rememberAuthPrompt
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -96,14 +99,108 @@ fun SettingsScreen(
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var replaceExistingOnRestore by remember { mutableStateOf(true) }
+    val requestAuth = rememberAuthPrompt()
+    val hasLockedItems = allTasks.any { it.isLocked } || allNotes.any { it.isLocked }
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var pendingExportPassword by remember { mutableStateOf<String?>(null) }
 
     // SAF Create Document launcher for Backup
     val createBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
+        val password = pendingExportPassword
+        pendingExportPassword = null
         uri?.let {
-            viewModel.createBackup(it, context)
+            viewModel.createBackup(it, context, password)
         }
+    }
+
+    // Locked items: one authentication, then an export password that protects them inside the file
+    if (showExportPasswordDialog) {
+        var password by remember { mutableStateOf("") }
+        var confirm by remember { mutableStateOf("") }
+        val valid = password.length >= 6 && password == confirm
+        AlertDialog(
+            onDismissRequest = { showExportPasswordDialog = false },
+            title = { Text("Protect locked items") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Your locked notes and tasks will be encrypted in the backup. You'll need this password to restore them.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Export password (min 6 characters)") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth().testTag("export_password_field")
+                    )
+                    OutlinedTextField(
+                        value = confirm,
+                        onValueChange = { confirm = it },
+                        label = { Text("Confirm password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = valid,
+                    onClick = {
+                        pendingExportPassword = password
+                        showExportPasswordDialog = false
+                        createBackupLauncher.launch(BackupManager.generateBackupFileName())
+                    }
+                ) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportPasswordDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Restoring a backup that contains locked items: ask for its export password
+    (backupUiState as? BackupUiState.NeedsPassword)?.let { needs ->
+        var password by remember(needs) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.clearBackupUiState() },
+            title = { Text("Locked items found") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = if (needs.wrongPassword) "Wrong password. Try again."
+                        else "Enter the export password used when this backup was created.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (needs.wrongPassword) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Export password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth().testTag("restore_password_field")
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = password.isNotEmpty(),
+                    onClick = {
+                        viewModel.restoreBackup(needs.sourceUri, needs.replaceExisting, context, password)
+                    }
+                ) { Text("Unlock & restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearBackupUiState() }) { Text("Cancel") }
+            }
+        )
     }
 
     // SAF Open Document launcher for Restore
@@ -626,6 +723,8 @@ fun SettingsScreen(
                             }
                         }
 
+                        is BackupUiState.NeedsPassword -> { /* handled by dialog */ }
+
                         is BackupUiState.Idle -> { /* Idle */ }
                     }
 
@@ -638,8 +737,11 @@ fun SettingsScreen(
                         Button(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                val defaultFileName = BackupManager.generateBackupFileName()
-                                createBackupLauncher.launch(defaultFileName)
+                                if (hasLockedItems) {
+                                    requestAuth("Confirm export of locked items", { showExportPasswordDialog = true }, {})
+                                } else {
+                                    createBackupLauncher.launch(BackupManager.generateBackupFileName())
+                                }
                             },
                             modifier = Modifier
                                 .weight(1f)

@@ -38,7 +38,8 @@ sealed class BackupResult {
         val fileName: String,
         val taskCount: Int,
         val noteCount: Int,
-        val mediaCount: Int
+        val mediaCount: Int,
+        val lockedCount: Int = 0
     ) : BackupResult()
 
     data class Error(val message: String, val cause: Throwable? = null) : BackupResult()
@@ -53,6 +54,11 @@ sealed class RestoreResult {
     ) : RestoreResult()
 
     data class Error(val message: String, val cause: Throwable? = null) : RestoreResult()
+
+    /** The backup holds locked items; ask for the export password and try again. */
+    object NeedsPassword : RestoreResult()
+
+    object WrongPassword : RestoreResult()
 }
 
 object BackupManager {
@@ -78,11 +84,18 @@ object BackupManager {
         context: Context,
         destinationUri: Uri,
         repository: TaskRepository,
-        settings: BackupSettings
+        settings: BackupSettings,
+        lockedPassword: CharArray? = null
     ): BackupResult = withContext(Dispatchers.IO) {
         try {
             val tasks = repository.getAllTasksSync()
             val notes = repository.getAllNotesSync()
+            val lockedCount = tasks.count { it.isLocked } + notes.count { it.isLocked }
+            if (lockedCount > 0 && (lockedPassword == null || lockedPassword.isEmpty())) {
+                return@withContext BackupResult.Error("A password is required to export locked items.")
+            }
+            // Locked items are sealed with a password-derived key; media of locked items is left out
+            val sealer = if (lockedCount > 0) BackupSealer.create(lockedPassword!!) else null
 
             var mediaCount = 0
             val outputStream = context.contentResolver.openOutputStream(destinationUri)
@@ -103,7 +116,7 @@ object BackupManager {
                 // Process task attachments
                 val updatedTasks = tasks.map { task ->
                     val rawAttachments = AttachmentItem.decodeList(task.attachmentsJson)
-                    if (rawAttachments.isEmpty()) {
+                    if (task.isLocked || rawAttachments.isEmpty()) {
                         task
                     } else {
                         val exportedAttachments = rawAttachments.map { item ->
@@ -122,7 +135,7 @@ object BackupManager {
                 // Process note attachments
                 val updatedNotes = notes.map { note ->
                     val rawAttachments = AttachmentItem.decodeList(note.attachmentsJson)
-                    if (rawAttachments.isEmpty()) {
+                    if (note.isLocked || rawAttachments.isEmpty()) {
                         note
                     } else {
                         val exportedAttachments = rawAttachments.map { item ->
@@ -144,6 +157,14 @@ object BackupManager {
                     put("appName", APP_NAME)
                     put("exportedAt", System.currentTimeMillis())
 
+                    if (sealer != null) {
+                        put("locked", JSONObject().apply {
+                            put("salt", android.util.Base64.encodeToString(sealer.salt, android.util.Base64.NO_WRAP))
+                            put("iterations", sealer.iterations)
+                            put("kdf", sealer.kdf)
+                        })
+                    }
+
                     // Settings
                     put("settings", JSONObject().apply {
                         put("themePalette", settings.themePalette)
@@ -157,14 +178,14 @@ object BackupManager {
                     // Tasks
                     val tasksArray = JSONArray()
                     for (task in updatedTasks) {
-                        tasksArray.put(taskToJson(task))
+                        tasksArray.put(taskToJson(task, sealer))
                     }
                     put("tasks", tasksArray)
 
                     // Notes
                     val notesArray = JSONArray()
                     for (note in updatedNotes) {
-                        notesArray.put(noteToJson(note))
+                        notesArray.put(noteToJson(note, sealer))
                     }
                     put("notes", notesArray)
                 }
@@ -179,7 +200,8 @@ object BackupManager {
                 fileName = destinationUri.lastPathSegment ?: generateBackupFileName(),
                 taskCount = tasks.size,
                 noteCount = notes.size,
-                mediaCount = mediaCount
+                mediaCount = mediaCount,
+                lockedCount = lockedCount
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error creating backup", e)
@@ -194,7 +216,8 @@ object BackupManager {
         context: Context,
         sourceUri: Uri,
         repository: TaskRepository,
-        replaceExisting: Boolean = true
+        replaceExisting: Boolean = true,
+        lockedPassword: CharArray? = null
     ): RestoreResult = withContext(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(sourceUri)
@@ -238,6 +261,29 @@ object BackupManager {
 
             val rootJson = JSONObject(dataJsonString)
 
+            // Locked items arrive sealed with the export password
+            var opener: BackupSealer? = null
+            val lockedMeta = rootJson.optJSONObject("locked")
+            if (lockedMeta != null) {
+                if (lockedPassword == null || lockedPassword.isEmpty()) {
+                    return@withContext RestoreResult.NeedsPassword
+                }
+                opener = BackupSealer.derive(
+                    lockedPassword,
+                    android.util.Base64.decode(lockedMeta.getString("salt"), android.util.Base64.NO_WRAP),
+                    lockedMeta.getInt("iterations"),
+                    lockedMeta.optString("kdf", "PBKDF2WithHmacSHA256")
+                )
+            }
+            fun unseal(obj: JSONObject): Boolean {
+                val blob = obj.optString("sealed", "")
+                if (blob.isEmpty()) return true
+                val plain = opener?.open(blob) ?: return false
+                val payload = JSONObject(plain)
+                for (key in payload.keys()) obj.put(key, payload.getString(key))
+                return true
+            }
+
             // Settings
             var restoredSettings: BackupSettings? = null
             if (rootJson.has("settings")) {
@@ -252,6 +298,7 @@ object BackupManager {
             val restoredTasks = mutableListOf<Task>()
             for (i in 0 until tasksArray.length()) {
                 val taskObj = tasksArray.getJSONObject(i)
+                if (!unseal(taskObj)) return@withContext RestoreResult.WrongPassword
                 val task = jsonToTask(taskObj)
 
                 // Relink media attachments
@@ -278,6 +325,7 @@ object BackupManager {
             val restoredNotes = mutableListOf<Note>()
             for (i in 0 until notesArray.length()) {
                 val noteObj = notesArray.getJSONObject(i)
+                if (!unseal(noteObj)) return@withContext RestoreResult.WrongPassword
                 val note = jsonToNote(noteObj)
 
                 // Relink media attachments
@@ -370,21 +418,28 @@ object BackupManager {
         }
     }
 
-    private fun taskToJson(task: Task): JSONObject = JSONObject().apply {
+    private fun taskToJson(task: Task, sealer: BackupSealer?): JSONObject = JSONObject().apply {
         put("id", task.id)
         put("title", task.title)
-        put("description", task.description)
+        put("description", if (task.isLocked) "" else task.description)
         put("dueDate", task.dueDate)
         put("dueTime", task.dueTime)
         put("priority", task.priority.name)
         put("category", task.category.name)
         put("isCompleted", task.isCompleted)
-        put("checklistJson", task.checklistJson)
-        put("attachmentsJson", task.attachmentsJson)
+        put("checklistJson", if (task.isLocked) "" else task.checklistJson)
+        put("attachmentsJson", if (task.isLocked) "" else task.attachmentsJson)
         put("reminderEnabled", task.reminderEnabled)
         put("reminderMinutesBefore", task.reminderMinutesBefore)
         put("createdAt", task.createdAt)
         put("isLocked", task.isLocked)
+        if (task.isLocked && sealer != null) {
+            put("sealed", sealer.seal(JSONObject().apply {
+                put("description", task.description)
+                put("checklistJson", task.checklistJson)
+                put("attachmentsJson", task.attachmentsJson)
+            }.toString()))
+        }
     }
 
     private fun jsonToTask(json: JSONObject): Task {
@@ -420,7 +475,7 @@ object BackupManager {
         )
     }
 
-    private fun noteToJson(note: Note): JSONObject = JSONObject().apply {
+    private fun noteToJson(note: Note, sealer: BackupSealer?): JSONObject = JSONObject().apply {
         put("id", note.id)
         if (note.taskId != null) {
             put("taskId", note.taskId)
@@ -428,14 +483,21 @@ object BackupManager {
             put("taskId", JSONObject.NULL)
         }
         put("title", note.title)
-        put("content", note.content)
+        put("content", if (note.isLocked) "" else note.content)
         put("colorIndex", note.colorIndex)
-        put("checklistJson", note.checklistJson)
-        put("attachmentsJson", note.attachmentsJson)
+        put("checklistJson", if (note.isLocked) "" else note.checklistJson)
+        put("attachmentsJson", if (note.isLocked) "" else note.attachmentsJson)
         put("isBold", note.isBold)
         put("isItalic", note.isItalic)
         put("createdAt", note.createdAt)
         put("isLocked", note.isLocked)
+        if (note.isLocked && sealer != null) {
+            put("sealed", sealer.seal(JSONObject().apply {
+                put("content", note.content)
+                put("checklistJson", note.checklistJson)
+                put("attachmentsJson", note.attachmentsJson)
+            }.toString()))
+        }
     }
 
     private fun jsonToNote(json: JSONObject): Note {
