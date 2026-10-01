@@ -101,6 +101,10 @@ Requirements: JDK 17 or newer and the Android SDK (compileSdk 36). minSdk is 24.
 
 Builds without a tag use a development version and the debug key, and can't update a release install.
 
+## Documentation
+
+See the [docs folder](docs/README.md): user guide, architecture, security and privacy, and build and release.
+
 ## Project layout
 
 See [PROJECT_INDEX.md](PROJECT_INDEX.md) for a file-by-file map. In short: `data/` (Room database, repository, backup), `notifications/` (alarms), `ui/` (Compose screens, components, theme, view model) and `util/` (audio, biometric auth, encryption).
