@@ -815,6 +815,10 @@ fun NoteEditorScreen(
                                             onTogglePlay = {
                                                 playingAudioId = if (playingAudioId == attachment.id) null else attachment.id
                                             },
+                                            onFinished = {
+                                                // Playback ended: only ever stop, never toggle back on
+                                                if (playingAudioId == attachment.id) playingAudioId = null
+                                            },
                                             onDelete = {
                                                 if (playingAudioId == attachment.id) playingAudioId = null
                                                 attachments = attachments.filterNot { it.id == attachment.id }
@@ -1493,6 +1497,7 @@ private fun AudioAttachmentCard(
     attachment: AttachmentItem,
     isPlaying: Boolean,
     onTogglePlay: () -> Unit,
+    onFinished: () -> Unit,
     onDelete: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1525,12 +1530,15 @@ private fun AudioAttachmentCard(
 
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
+            // Plays the memo once. Finishing (or any error) stops playback; it never restarts itself.
+            var started = false
             try {
                 val player = MediaPlayer()
+                mediaPlayer = player
+                player.isLooping = false
                 val isSample = attachment.uriOrUrl.startsWith("sample://")
                 if (isSample) {
-                    val sampleFile = AudioHelper.getOrCreateSampleAudioFile(context)
-                    player.setDataSource(sampleFile.absolutePath)
+                    player.setDataSource(AudioHelper.getOrCreateSampleAudioFile(context).absolutePath)
                 } else {
                     val localFile = File(attachment.uriOrUrl)
                     if (localFile.exists()) {
@@ -1544,46 +1552,30 @@ private fun AudioAttachmentCard(
                 player.setOnCompletionListener {
                     playbackProgress = 0f
                     currentPositionMs = 0
-                    onTogglePlay()
+                    onFinished()
                 }
                 player.start()
-                mediaPlayer = player
+                started = true
 
-                while (isPlaying && player.isPlaying) {
+                while (player.isPlaying) {
                     currentPositionMs = player.currentPosition
                     totalDurationMs = maxOf(1, player.duration)
                     playbackProgress = (currentPositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
                     delay(80)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                // Fallback to synthesized audio tone
-                try {
-                    val sampleFile = AudioHelper.getOrCreateSampleAudioFile(context)
-                    val player = MediaPlayer().apply {
-                        setDataSource(sampleFile.absolutePath)
-                        prepare()
-                        start()
-                    }
-                    totalDurationMs = maxOf(1, player.duration)
-                    player.setOnCompletionListener {
-                        playbackProgress = 0f
-                        currentPositionMs = 0
-                        onTogglePlay()
-                    }
-                    mediaPlayer = player
-                    while (isPlaying && player.isPlaying) {
-                        currentPositionMs = player.currentPosition
-                        totalDurationMs = maxOf(1, player.duration)
-                        playbackProgress = (currentPositionMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
-                        delay(80)
-                    }
-                } catch (ex: Exception) {
-                    onTogglePlay()
+                // The recording couldn't be played (e.g. unreadable file). Stop instead of retrying.
+                if (!started) {
+                    Toast.makeText(context, "Couldn't play this audio", Toast.LENGTH_SHORT).show()
                 }
+                onFinished()
             }
         } else {
             try {
                 mediaPlayer?.let {
+                    it.setOnCompletionListener(null)
                     if (it.isPlaying) {
                         it.stop()
                     }
