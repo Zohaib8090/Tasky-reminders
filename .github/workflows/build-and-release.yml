@@ -74,11 +74,22 @@ jobs:
 
       - name: Setup Release Keystore (if secrets provided)
         id: setup-release-keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          if [ -n "$KEYSTORE_BASE64" ]; then
             echo "Found KEYSTORE_BASE64 secret, decoding to my-upload-key.jks..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
-            echo "HAS_RELEASE_KEY=true" >> "$GITHUB_OUTPUT"
+            # Strip any spaces/line breaks picked up when the secret was pasted
+            printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > my-upload-key.jks || true
+            echo "Decoded keystore size: $(wc -c < my-upload-key.jks) bytes"
+            if keytool -list -keystore my-upload-key.jks -storepass "$STORE_PASSWORD" > /dev/null 2>&1; then
+              echo "Release keystore is valid."
+              echo "HAS_RELEASE_KEY=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::KEYSTORE_BASE64 or STORE_PASSWORD is wrong: the keystore could not be opened. Re-create the KEYSTORE_BASE64 secret with the full output of 'base64 -w0 my-upload-key.jks' and check STORE_PASSWORD."
+              exit 1
+            fi
           else
             echo "No KEYSTORE_BASE64 secret found."
             echo "HAS_RELEASE_KEY=false" >> "$GITHUB_OUTPUT"
