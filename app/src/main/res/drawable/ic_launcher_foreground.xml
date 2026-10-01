@@ -7,5 +7,5 @@
     android:viewportHeight="108">
     <path android:pathData="M54,22C41,22 35,33 35,46V58L28,68H80L73,58V46C73,33 67,22 54,22Z" android:fillColor="#FFFFFF" />
     <path android:pathData="M54,70.5A6.5,6.5 0 1 1 54,83.5A6.5,6.5 0 1 1 54,70.5Z" android:fillColor="#FFFFFF" />
-    <path android:pathData="M44,47L52,55.5L65,40" android:strokeColor="#5B3FD9" android:strokeWidth="6" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M44,47L52,55.5L65,40" android:strokeColor="#2F6BEB" android:strokeWidth="6" android:strokeLineCap="round" android:strokeLineJoin="round" />
 </vector>
